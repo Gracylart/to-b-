@@ -1,41 +1,132 @@
-# Codex Dynamic Workflow
+# 文案审核台 · Review Desk
 
-交互动效仪表盘，复刻并展示「任务网格 → 飞行粒子 → 提交统计栏」的工作流。
+面向多项目文案工作的 macOS 菜单栏应用，采用 365 × 789 的玻璃质感窗口。支持项目规划、文案导入与编辑、8 项本地规则预检，以及随检查阶段推进的方块阵列、粒子、日志和进度动效。
 
-在线版本：https://codex-workflow-gracy.blush-tetra-1726.chatgpt.site/
+[设计原型 · Figma](https://www.figma.com/design/IBHECNJfQK2Dymy3CLCZAV/Codex-Dynamic-Workflow?node-id=173-2234) · [项目源码 · GitHub](https://github.com/Gracylart/to-b-) · [原始动效示例](https://codex-workflow-gracy.blush-tetra-1726.chatgpt.site/)
 
-## 技术栈
+## 三个界面
 
-原生 HTML、CSS 和 JavaScript，使用 Canvas 绘制粒子；无需框架、构建工具或第三方运行依赖。
+| 界面 | 用途 | 主要交互 |
+| --- | --- | --- |
+| A / TOTAL · 总览 | 总体数据、过往与当前项目、多项目并行时间轴 | 展开项目文档、新建项目、修改阶段和交付计划、切换时间范围 |
+| B / PROJECT · 项目 | 单个项目的资料、BOM 文档、SKU、成员和交付信息 | 点击大标题两侧的三角按钮切换项目；查看、编辑或审核文案 |
+| C / REVIEW · 审核 | 文案检查过程与结果 | 方块阵列和粒子跟随阶段推进；查看规则执行日志、进度、问题位置和修改建议 |
 
-## 本地运行
+初始项目、成员、SKU 和历史数字为示例数据。导入或编辑后的文案会执行实际的本地规则检查；真实文案的完成记录用于本地累计统计，示例演练不计入真实历史统计。
+
+## 使用桌面应用
+
+解压构建产物，将 `文案审核台.app` 放入「应用程序」后打开。应用入口在屏幕顶部菜单栏，默认不显示 Dock 图标。
+
+- 左键点击菜单栏图标：展开或收起窗口。窗口会贴近图标，并适配当前屏幕可用高度。
+- 点击窗口外或按 `Esc`：收起窗口；文件选择器打开期间不会因失焦误关闭。
+- 右键点击图标：打开总览或审核台、固定窗口、设置登录时启动、退出应用。
+- 「固定窗口」打开后，切换到其他应用时仍保留审核台。
+- 登录时启动默认关闭，只能在打包后的 macOS 应用中启用。
+- 菜单栏状态文字会显示审核进度、暂停状态或待确认问题数量。
+
+窗口收起后，正在运行的检查继续执行。退出应用会结束当前运行；已保存的项目、文案与历史摘要会保留。
+
+## 导入、检查和导出
+
+1. 在总览或项目页选择「导入文案 / 添加文案」。可选择现有项目，也可先在总览中新建项目。
+2. 输入文档名称并粘贴正文，选择「添加并审核」；或选择一个或多个 UTF-8 文件导入。支持 `.txt`、`.md`、`.csv` 和 `.json`，单文件不超过 2 MB。CSV 和 JSON 按文本检查，不解析业务字段；当前不直接读取 PDF、Word 或图片。
+3. 已有文案可从 BOM 打开，编辑后保存，再审核单篇或整个项目。
+4. 审核过程中可暂停、继续或停止。停止后仍可查看并导出已完成文档的结果；「重新审核」会重新运行规则。
+5. 点击问题项查看原文行号、相关片段与修改建议，或打开结果面板导出 JSON 报告。
+
+报告包含项目、文档、规则命中、行号、建议及本次运行状态。完整报告保留在本次应用会话中，请在需要长期留存时导出；本地历史保存的是运行摘要。
+
+在设置中启用「减少动态效果」，可以关闭粒子飞行和方块闪烁；应用也会响应系统的减少动态效果偏好。
+
+## 检查范围与数据
+
+审核引擎实际执行以下 8 项确定性规则：
+
+| 规则 | 检查内容 |
+| --- | --- |
+| 文档内容 | 是否包含可审核文字 |
+| 占位内容 | 模板变量、TODO、TBD 和明确的待填写标记 |
+| 重复词语 | 相邻英文重复词、明显重复的中文助词 |
+| 多余空格 | 正文内部连续空格，忽略行首缩进、表格和代码块 |
+| 产品名称 | 与当前项目名称对应的型号大小写及分隔符写法 |
+| 标点配对 | 全半角括号混用、中文语句中的半角标点 |
+| 数值与单位 | 常见拉丁字母计量单位前缺少空格 |
+| 宣传措辞 | 提示需要核验依据或限定条件的绝对化表述 |
+
+结果用于文案预检，提示项仍需人工判断。当前未接入远程模型、真实 Codex 任务、PDM 数据、团队账号或在线协作；规则执行日志显示本地 JavaScript 检查阶段，不会执行导入文案中的代码。PDM 字段用于保存项目网址。
+
+项目、文案、设置和最近 50 条历史摘要保存在本机 `localStorage` 中，不上传服务器。桌面原生偏好保存在应用用户数据目录。浏览器预览与桌面应用分别使用各自的本地存储，不自动同步。
+
+## 本地开发
+
+需要 Node.js 22.12 或更新版本。仓库使用原生 HTML、CSS、ES Modules 与 Canvas；桌面壳使用 Electron。
 
 ```bash
 git clone https://github.com/Gracylart/to-b-.git
 cd to-b-
+npm ci
+npm start
+```
+
+首次启动或构建需要下载 Electron 二进制。若只预览网页：
+
+```bash
 python3 -m http.server 8765 --directory dist
 ```
 
-打开 http://localhost:8765/ 。
+打开 [本地预览](http://localhost:8765/)。菜单栏、窗口固定及登录启动功能仅在桌面应用中提供。原始粒子演示保存在 [reference 页面](dist/reference/index.html)，可通过静态服务器访问 `/reference/`。
 
-也可用任意静态 Web 服务器托管 `dist/`。
+| 命令 | 用途 |
+| --- | --- |
+| `npm start` | 启动开发版菜单栏应用 |
+| `npm test` | 运行规则引擎及桌面安全测试 |
+| `npm run check` | 检查 JavaScript 语法、入口资源、CSP 和打包文件 |
+| `npm run icons` | 生成原创菜单栏模板图标与 macOS 应用图标 |
+| `npm run prepare:electron` | 下载并校验锁定版本的 Electron |
+| `npm run build:mac` | 构建 Apple Silicon 应用目录与 ZIP |
+| `npm run build:mac:dir` | 只构建 Apple Silicon 应用目录 |
 
-## 文件结构
+## macOS 构建
 
-- `dist/index.html`：仪表盘页面与控件。
-- `dist/style.css`：深色主题、网格布局与界面动效。
-- `dist/app.js`：Canvas 粒子、播放时间轴、统计、搜索与交互。
-- `.openai/hosting.json`：现有 Sites 静态部署配置。
+在 macOS Apple Silicon 主机运行：
 
-## 交互
+```bash
+npm ci
+npm test
+npm run build:mac
+```
 
-- 任务从网格飞入统计栏，落地时更新计数。
-- 暂停、继续、重播、时间轴定位与播放速度调整。
-- 按 crate 名称搜索。
-- 分配、摘要、保存视图、导出与复制链接等演示交互。
+当前版本产物：
 
-这是前端交互演示，数据与审核/代理执行状态为模拟数据，未连接真实 Codex 任务后端，AI summary 不调用模型。
+```text
+release/mac-arm64/文案审核台.app
+release/Copy-Review-Desk-1.0.0-arm64.zip
+```
 
-## 来源版本
+构建目标为 macOS `arm64`，最低系统版本声明为 macOS 12；当前没有 Intel 安装包。安装包使用本机 **ad hoc 签名**，未使用 Developer ID，也未经过 Apple 公证。它适合本机运行和开发验证；对外分发前应配置正式签名与公证。构建不会捆绑 SF Pro，系统界面字体使用 macOS 自带字体。
 
-对应 Sites 第 2 版，原始源码提交：`ad01e19816fb4c141905aeb7ded460f9c64091af`。
+生产窗口启用 sandbox、context isolation 和 CSP，禁用 Node integration。渲染页面通过受限的 `window.reviewDesktop` 接口更新状态和设置；外部链接仅允许指定 HTTPS 域名，并由系统浏览器打开。
+
+## 目录
+
+```text
+desktop/                   Electron 主进程、preload、安全策略与原创图标
+dist/index.html            应用入口
+dist/style.css             三个界面的样式与动效
+dist/app.js                页面交互和本地审核运行流程
+dist/modules/              规则引擎、工作区存储、Canvas 动效
+dist/assets/               Figma 设计资源与开放许可字体
+dist/reference/            保留的原始粒子动效演示
+scripts/                   图标生成与构建检查
+tests/                     自动化测试
+THIRD_PARTY_NOTICES.md      来源、致谢与第三方许可
+```
+
+`release/`、`node_modules/` 和本机工作文件不纳入源码仓库。
+
+## 来源与致谢
+
+界面基于用户提供的 Figma Glass Shell A / B / C 设计；动效延续本仓库原始 Codex Dynamic Workflow 演示，原始源码提交为 `ad01e19816fb4c141905aeb7ded460f9c64091af`。
+
+菜单栏交互形态参考 [Javis603 / Token Monitor](https://github.com/Javis603/token-monitor)（MIT 许可），本项目作为独立应用实现。感谢 Electron、electron-builder、Inter 和 Roboto Mono 项目。具体版权与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

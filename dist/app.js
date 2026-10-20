@@ -1,63 +1,265 @@
-const $=id=>document.getElementById(id);
-const crates=[['bun_runtime',1162,'#ed71bf'],['bun_bundler',252,'#ffbb63'],['bun_sql',67,'#e77d9b'],['bun_js_parser',40,'#65d6b1'],['bun_css',10,'#8caec7'],['bun_http',7,'#d3ba68'],['bun_interchange',7,'#989ac5'],['bun_sys',6,'#96a8bd'],['bun_core',4,'#a5b4cc'],['bun_string',3,'#97aa97']];
-const subjects=['fix EventLoop before callback dispatch','cannot move out of async context','fix TextDecoder.rs type/import mismatch','fix Request.rs mime_type resolver','cannot borrow as mutable','fix bun_test.rs raw-ptr callback','runtime/timer/TimerObject.rs missing type','webcore.rs drop duplicate feature gate','dns.rs implement pending resolve','css/css_parser.rs port selector tokens','runtime/crypto/mod.rs import EVP constants','fix api/UnsafeObject.rs compile bounds','allow improper_ctypes on HTMLBundle','node/util/validators use ZigFormatter','fix Terminal.rs sys/libc/tty path resolution','fix PBKDF2 module-vs-type imports','Body.rs allow invalid_reference_casting','final link dedup → BINARY'];
+import {RULES,analyzeDocument} from './modules/audit-engine.js';
+import {loadWorkspace,saveWorkspace,escapeHTML as esc,newId,formatDate,timelinePosition} from './modules/workspace.js';
+import {WorkflowVisual} from './modules/workflow-visual.js';
+
+const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
+if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
+let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
+let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0;
+const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=['#f3ce68','#a48af0','#a48af0','#6adeb1'];
-$('worktrees').innerHTML=Array.from({length:4},(_,w)=>`<div class="worktree"><div class="worktree-label">worktree ${w+1}<span>16 agents</span></div><div class="agent-grid">${Array.from({length:16},(_,n)=>`<span class="node" data-node="${w*16+n}" style="--node:${colors[n%4]}" title="Worktree ${w+1} · loop ${Math.floor(n/4)+1} · ${['fix','review 1','review 2','apply'][n%4]}"></span>`).join('')}</div></div>`).join('');
-$('chart').innerHTML=crates.map(([name,total,color],i)=>`<button class="chart-row" data-crate="${i}" title="Filter ${name}"><span class="crate-name">${name}</span><span class="bar-track"><span class="bar-fill" style="--bar:${color}"><span class="bar-flare"></span></span></span><span class="crate-count">0</span></button>`).join('');
-$('errorList').innerHTML=subjects.slice(0,11).map(s=>`<div class="error-line"><span class="prefix">error: </span>${s}</div>`).join('');
-$('logs').innerHTML='<div class="log-line">phase-d: cargo check · 16,000 errors grouped by crate</div><div class="log-line">phase-d: allocating 16 loops across 4 worktrees</div><div class="log-line">phase-d: 64 agents ready</div>';
-const totalCommits=crates.reduce((sum,c)=>sum+c[1],0);
-const duration=24000, nodes=[...document.querySelectorAll('.node')],rows=[...document.querySelectorAll('.chart-row')];
-let position=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,speed=1,selected=-1,lastTime=0,lastLog=-1,toastTimer,alertEnabled=false,completedAlert=false;
-const events=[];
-crates.forEach((crate,c)=>{const n=[112,32,12,10,4,3,3,3,2,2][c];for(let i=0;i<n;i++){
- const start=c===0?1400:1100+c*37;const end=c===0?23100:c===1?12000:14500+c*650;
- const at=start+(end-start)*(i+1)/n+Math.sin(i*17+c*29)*95;
- const amount=Math.floor(crate[1]*(i+1)/n)-Math.floor(crate[1]*i/n);
- events.push({at,depart:at-(390+((i*37+c*51)%150)),amount,crate:c,loop:(i*7+c*3)%16,subject:(i+c*3)%subjects.length});
-}});events.sort((a,b)=>a.at-b.at);
-// Fix each destination so a growing bar never pulls an in-flight particle sideways.
-const landedTotals=crates.map(()=>0);
-for(const event of events){landedTotals[event.crate]+=event.amount;event.landingCount=landedTotals[event.crate]}
-const canvas=$('particles'),ctx=canvas.getContext('2d');let geo={width:0,height:0,nodes:[],tracks:[]};
-function measure(){const box=$('flow').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=box.width*dpr;canvas.height=box.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);geo={width:box.width,height:box.height,nodes:nodes.map(n=>{const r=n.getBoundingClientRect();return{x:r.left-box.left+r.width/2,y:r.top-box.top+r.height/2}}),tracks:rows.map(row=>{const r=row.querySelector('.bar-track').getBoundingClientRect();return{x:r.left-box.left,y:r.top-box.top+r.height/2,width:r.width}})};render();}
-new ResizeObserver(measure).observe($('flow'));
-function notify(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2500)}
-function readState(){const counts=crates.map(()=>0);let commits=0;for(const e of events){if(e.at>position)break;counts[e.crate]+=e.amount;commits+=e.amount}return{positionMs:Math.round(position),playing,speed,commits,errorsLeft:Math.max(0,Math.round(16000*(1-commits/totalCommits))),counts}}
-function syncControls(){const finished=position>=duration;$('play').textContent=finished?'↻':playing?'Ⅱ':'▶';$('play').setAttribute('aria-label',finished?'Replay workflow':playing?'Pause playback':'Resume playback');$('live').classList.toggle('paused',!playing);$('live').querySelector('span').textContent=finished?'Done':playing?'Live':'Paused';$('live').setAttribute('aria-label',finished?'Replay workflow':playing?'Pause playback':'Resume playback');$('speed').textContent=speed+'×'}
-function setPlaying(value){if(value&&position>=duration){position=0;completedAlert=false}playing=value;syncControls();render()}
-function replay(){position=0;lastLog=-1;completedAlert=false;setPlaying(true)}
-function seek(value){position=Math.max(0,Math.min(duration,Number(value)));if(position<duration)completedAlert=false;syncControls();render()}
-function easeInOutSine(t){return (1-Math.cos(Math.PI*t))/2}
-function flightPoint(e,progress){const p=easeInOutSine(Math.max(0,Math.min(1,progress)));const source=geo.nodes[e.loop*4+3],target=geo.tracks[e.crate];if(!source||!target)return null;const endX=target.x+target.width*Math.max(.02,Math.min(1,e.landingCount/1162));const endY=target.y;const dx=endX-source.x,dy=endY-source.y;const bend=Math.min(48,Math.abs(dx)*.18);return{x:source.x+dx*p,y:source.y+dy*p-Math.sin(Math.PI*p)*bend}}
-function render(){const state=readState(),done=state.commits===totalCommits;const counts=state.counts;const active=new Set();let latest=-1;
- $('errors').textContent=done?'0':'≈'+state.errorsLeft.toLocaleString('en-US');$('errors').classList.toggle('complete',done);$('commits').textContent=state.commits.toLocaleString('en-US');$('fileStatus').textContent=done?'resolved':'grouped';$('runStatus').textContent=done?'complete':playing?'running':'paused';$('queueStatus').textContent=done?'ALL ERRORS RESOLVED':'PROCESSING ERROR QUEUE';$('consoleState').textContent=done?'all worktrees synchronized · exit 0':playing?'receiving commit batches':'playback paused';
- const minutes=9*60+Math.round(position/duration*222);$('clock').textContent='Wed, May 6, '+(Math.floor(minutes/60)>12?Math.floor(minutes/60)-12:Math.floor(minutes/60))+':'+String(minutes%60).padStart(2,'0')+' '+(minutes>=720?'PM':'AM')+' PDT';
- $('timeline').value=position;$('timeline').style.setProperty('--progress',position/duration*100+'%');$('elapsed').textContent='00:'+String(Math.floor(position/1000)).padStart(2,'0');
- rows.forEach((r,c)=>{r.querySelector('.bar-fill').style.width=counts[c]/1162*100+'%';r.querySelector('.crate-count').textContent=counts[c].toLocaleString('en-US');r.classList.remove('landed')});
- ctx.clearRect(0,0,geo.width,geo.height);
- events.forEach((e,i)=>{if(e.at<=position){latest=i;if(position-e.at<170)rows[e.crate].classList.add('landed')}const stage=position-(e.depart-1100);if(stage>=0&&stage<1100){const column=Math.min(3,Math.floor(stage/275));active.add(e.loop*4+column)}if(position>=e.depart&&position<e.at&&!rows[e.crate].hidden){const p=(position-e.depart)/(e.at-e.depart);ctx.globalAlpha=selected<0||selected===e.crate?1:.15;for(let trail=3;trail>=0;trail--){const point=flightPoint(e,Math.max(0,p-trail*.045));if(!point)continue;ctx.fillStyle=trail?'rgba(224,242,255,'+(0.16-trail*.035)+')':'#f9fff7';ctx.shadowColor='#e0ffe8';ctx.shadowBlur=trail?0:8;const size=trail?3:5;ctx.fillRect(point.x-size/2,point.y-size/2,size,size)}ctx.shadowBlur=0;ctx.globalAlpha=1}});
- nodes.forEach((n,i)=>n.classList.toggle('active',active.has(i)));
- if(latest!==lastLog){lastLog=latest;const recent=events.slice(0,latest+1).filter(e=>selected<0||e.crate===selected).slice(-3);$('logs').innerHTML=recent.length?recent.map(e=>`<div class="log-line">phase-d(${crates[e.crate][0]}): ${subjects[e.subject]}</div>`).join(''):'<div class="log-line">phase-d: cargo check · 16,000 errors grouped by crate</div><div class="log-line">phase-d: allocating 16 loops across 4 worktrees</div><div class="log-line">phase-d: 64 agents ready</div>';
- const offset=Math.max(0,Math.floor(latest/3));$('errorList').innerHTML=Array.from({length:11},(_,i)=>`<div class="error-line${done?' resolved':''}"><span class="prefix">${done?'✓ error: ':i%4===0?'error[E0502]: ':'error: '}</span>${subjects[(offset+i)%subjects.length]}</div>`).join('')}
- if(done&&alertEnabled&&!completedAlert){completedAlert=true;notify('Run complete. All 16,000 errors resolved.')}
+const selectedProject=()=>workspace.projects.find(p=>p.id===workspace.selectedProject)||workspace.projects[0];
+const jobProject=()=>workspace.projects.find(p=>p.id===job?.projectId)||selectedProject();
+const activeJob=()=>job&&['running','paused'].includes(job.status);
+const reducedMotion=()=>workspace.settings.reducedMotion||reducedSystem.matches;
+const icon=(name,cls='')=>`<img class="${cls}" src="assets/figma/${name}.svg" alt="">`;
+const button=(label,action,cls='')=>`<button class="button ${cls}" data-action="${action}">${label}</button>`;
+function notify(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3000);}
+function persist(){try{saveWorkspace(workspace);}catch{notify('本机存储空间不足，本次改动暂未保存。');}}
+function setView(next){
+  if(!['home','project','review'].includes(next))return;
+  view=next;render();
 }
-function frame(time){if(lastTime&&playing)position=Math.min(duration,position+(time-lastTime)*speed);lastTime=time;render();if(position>=duration&&playing){playing=false;syncControls()}requestAnimationFrame(frame)}
-$('play').onclick=()=>setPlaying(!playing);$('live').onclick=()=>setPlaying(!playing);$('replay').onclick=replay;
-$('timeline').oninput=e=>seek(e.target.value);
-$('speed').onclick=()=>{speed=[.5,1,1.5,2][([.5,1,1.5,2].indexOf(speed)+1)%4];syncControls()};
-$('search').oninput=()=>{const q=$('search').value.trim().toLowerCase();rows.forEach((r,i)=>r.hidden=!crates[i][0].includes(q));$('empty').hidden=rows.some(r=>!r.hidden);measure()};
-rows.forEach((r,i)=>r.onclick=()=>{selected=selected===i?-1:i;rows.forEach((row,c)=>{row.classList.toggle('selected',selected===c);row.classList.toggle('dimmed',selected>=0&&selected!==c);row.setAttribute('aria-pressed',String(selected===c))});lastLog=-2;render();notify(selected<0?'Showing all crates':'Following '+crates[selected][0])});
-$('alert').onclick=()=>{alertEnabled=!alertEnabled;$('alert').textContent=alertEnabled?'Alert on':'Alert off';$('alert').classList.toggle('enabled',alertEnabled);$('alert').setAttribute('aria-pressed',String(alertEnabled));notify(alertEnabled?'Completion alert enabled':'Completion alert disabled')};
-$('assign').onclick=()=>{const assigned=$('assign').classList.toggle('enabled');$('assign').textContent=assigned?'Assigned to you':'Assign';notify(assigned?'This run is assigned to you':'Assignment removed')};
-$('save').onclick=()=>{try{localStorage.setItem('workflow-view',JSON.stringify({position,speed,selected}));$('save').classList.add('enabled');$('save').textContent='View saved';$('save').setAttribute('aria-pressed','true');notify('Playback position and speed saved in this browser')}catch{notify('This browser cannot save the view')}};
-$('export').onclick=()=>{const state=readState(),csv='crate,commits,total\n'+crates.map((c,i)=>`${c[0]},${state.counts[i]},${c[1]}`).join('\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'})),a=document.createElement('a');a.href=url;a.download='workflow-commits.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Commit snapshot exported')};
-$('copy').onclick=async()=>{try{const url=new URL(location.href);url.hash='t='+Math.round(position);await navigator.clipboard.writeText(url.href);notify('Link copied with current playback position')}catch{notify('Copy this page’s URL from the address bar')}};
-$('summary').onclick=()=>{const s=readState();$('summaryContent').innerHTML=`<p><strong>${s.commits.toLocaleString()}</strong> commits landed across ${s.counts.filter(Boolean).length} crates.<br><strong>${(16000-s.errorsLeft).toLocaleString()}</strong> of 16,000 errors resolved.</p><p>64 agents work in 16 parallel loops: one fixes, two review, and one applies.</p><p style="color:#727d90;font-size:12px">This is a simulated reconstruction of the reference video. No live repositories are connected.</p>`;$('dialog').showModal()};
-$('closeDialog').onclick=$('dismiss').onclick=()=>$('dialog').close();$('dialog').onclick=e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('dialog').close()}};
-document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','BUTTON','TEXTAREA'].includes(document.activeElement.tagName)&&!$('dialog').open){e.preventDefault();setPlaying(!playing)}});
-document.addEventListener('visibilitychange',()=>{lastTime=0});
-try{const saved=JSON.parse(localStorage.getItem('workflow-view'));if(saved&&Number.isFinite(saved.position)){position=Math.max(0,Math.min(duration,saved.position));speed=[.5,1,1.5,2].includes(saved.speed)?saved.speed:1;playing=false;$('save').classList.add('enabled');$('save').textContent='View saved'}}catch{}
-const hashTime=new URLSearchParams(location.hash.slice(1)).get('t');if(hashTime!==null&&Number.isFinite(Number(hashTime))){position=Math.max(0,Math.min(duration,Number(hashTime)));playing=false}
-if(document.modelContext?.registerTool){const lifecycle=new AbortController();addEventListener('pagehide',()=>lifecycle.abort(),{once:true});for(const tool of [{name:'read_workflow',description:'Read current simulated workflow progress.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>readState()},{name:'control_workflow_playback',description:'Pause, resume, restart or seek the workflow replay.',inputSchema:{type:'object',properties:{action:{type:'string',enum:['pause','resume','restart','seek']},positionMs:{type:'number',minimum:0,maximum:24000}},required:['action'],additionalProperties:false},execute:input=>{if(!input||!['pause','resume','restart','seek'].includes(input.action))throw new Error('Invalid action');if(input.action==='seek'){if(!Number.isFinite(input.positionMs)||input.positionMs<0||input.positionMs>duration)throw new Error('positionMs must be between 0 and 24000');seek(input.positionMs)}else if(input.action==='restart')replay();else setPlaying(input.action==='resume');return readState()}}]){try{Promise.resolve(document.modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{})}catch{}}}
-syncControls();measure();requestAnimationFrame(frame);
+function selectProject(id){if(workspace.projects.some(p=>p.id===id)){workspace.selectedProject=id;expanded=id;persist();setView('project');}}
+function setFooter(){
+  const count=workspace.projects.reduce((n,p)=>n+p.documents.filter(d=>!d.example).length,0);
+  $('footerStatus').textContent=job?.status==='running'?'正在本地预检':job?.status==='paused'?'预检已暂停':'本地工作区';
+  $('workspaceInfo').textContent=count?`${count} 份本地文档`:'示例数据';
+  $('reviewDot').hidden=!activeJob();
+}
+function render(){
+  visual?.destroy();visual=null;
+  document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():reviewHTML();
+  $('viewRoot').scrollTop=0;setFooter();
+  if(view==='review'){visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion()});updateReview();}
+}
+function homeHTML(){
+  const realHistory=workspace.history.filter(h=>!h.example);
+  const hasReal=realHistory.length>0;
+  const activityEnd=new Date();activityEnd.setHours(12,0,0,0);activityEnd.setDate(activityEnd.getDate()+6-activityEnd.getDay());
+  const activityStart=new Date(activityEnd);activityStart.setDate(activityEnd.getDate()-195);
+  const daily=new Map();for(const h of realHistory){const key=new Date(h.date).toLocaleDateString('sv-SE');daily.set(key,(daily.get(key)||0)+h.total);}
+  const totalDocs=realHistory.reduce((n,h)=>n+h.total,0),passed=realHistory.reduce((n,h)=>n+h.clean,0);
+  const avg=hasReal?(realHistory.reduce((n,h)=>n+h.elapsed,0)/Math.max(1,totalDocs)/1000).toFixed(1)+'s':'1.6s';
+  const metrics=[['平均耗时',avg],['通过率',hasReal?Math.round(passed/Math.max(1,totalDocs)*100)+'%':'98.9%'],['已校文档',hasReal?String(totalDocs):'93'],['审核项目',hasReal?String(new Set(realHistory.map(h=>h.projectId)).size):'24']];
+  return `<div class="view home-view">
+    <h1 class="home-intro">HOW ABOUT SCANNING SOMETHING?</h1>
+    <dl class="metrics">${metrics.map(([k,v])=>`<div class="metric"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+    <div class="rule"></div>
+    <section aria-label="审核活动"><div class="section-head"><h2>活动</h2><span class="meta">${hasReal?'本地累计':'示例累计'} ${hasReal?totalDocs:93} 文件 ${icon('a-icon-trends')}</span></div>
+      <div class="heatmap" aria-label="最近 28 周审核活动">${Array.from({length:196},(_,i)=>{const col=Math.floor(i/7),n=(i*17+col*7)%19;const day=new Date(activityStart);day.setDate(day.getDate()+i);const key=day.toLocaleDateString('sv-SE'),count=daily.get(key)||0;const intensity=hasReal?(count?Math.min(.95,.3+count/20):.05):col<14?.04+n/260:col<23?.08+n/55:.2+n/24;return `<span class="heat-cell" style="--intensity:${Math.min(.95,intensity).toFixed(2)}" title="${hasReal?key+' · '+count+' 份':'示例活动 · 第 '+(col+1)+' 周'}"></span>`;}).join('')}</div>
+      <div class="heat-months">${Array.from({length:7},(_,i)=>{const d=new Date(activityEnd.getFullYear(),activityEnd.getMonth()-6+i,1);return `<span>${d.getMonth()+1}月</span>`;}).join('')}</div>
+    </section><div class="rule"></div>
+    <section><div class="section-head"><h2>过往与当前项目</h2><button class="section-link" data-action="new-project">＋ 新项目</button></div>
+      <div class="project-list past-projects">${workspace.projects.map(p=>`<div class="project-group ${expanded===p.id?'expanded':''}"><button class="project-summary" data-expand="${esc(p.id)}" aria-expanded="${expanded===p.id}">${icon('a-icon-claude')}<span>${esc(p.code)}</span><span class="project-stage">${esc(p.phase)}_${formatDate(p.due)}</span><span class="chevron">${expanded===p.id?'−':'＋'}</span></button>
+        <div class="project-docs">${p.documents.slice(0,7).map(d=>`<button class="mini-doc" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="doc-name">${esc(d.name)}</span><span class="doc-code">${esc(d.code||'LOCAL')}</span></button>`).join('')}<button class="mini-doc" data-project-open="${esc(p.id)}"><span class="mint">查看项目详情</span><span>→</span></button></div></div>`).join('')}</div>
+    </section>
+    <section class="planning"><div class="section-head"><h2>并行项目规划</h2><div class="week-nav"><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 DAYS</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} PROJECTS</span></div></section>
+    <div class="home-actions">${button('＋ 导入文案','import','grow')}${button('开始审核 →','start-project','primary grow')}</div>
+  </div>`;
+}
+function timelineHTML(){
+  const base=new Date('2026-10-20T12:00:00');base.setDate(base.getDate()+timelineOffset*7);const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const rangeStart=iso(base),labels=Array.from({length:5},(_,i)=>{const d=new Date(base);d.setDate(d.getDate()+i*6);return `${d.getMonth()+1}/${d.getDate()}`;});
+  const now=new Date(),today=(new Date(now.getFullYear(),now.getMonth(),now.getDate(),12)-base)/86400000/24;
+  return `<div class="gantt"><div class="gantt-axis">${labels.map(x=>`<span>${x}</span>`).join('')}</div>${workspace.projects.map(p=>{const pos=timelinePosition(p.start,p.due,rangeStart);return `<div class="gantt-row"><button class="gantt-label" data-project-open="${esc(p.id)}" title="${esc(p.name)}">${esc(p.code)}</button><div class="gantt-track">${pos?`<button class="gantt-bar" data-plan="${esc(p.id)}" style="--start:${pos.start}%;--length:${pos.length}%;--bar:${p.color}" title="${esc(p.code)} · ${esc(p.start)} 至 ${esc(p.due)}"><span>${esc(p.phase)}</span></button>`:''}</div></div>`;}).join('')}${today>=0&&today<=1?`<div class="gantt-today" style="--today:${today}"></div>`:''}</div>`;
+}
+function projectHTML(){
+  const p=selectedProject(),docs=p.documents.filter(d=>bomFilter==='all'||d.status!=='reviewed');
+  return `<div class="view project-view">
+    <div class="project-heading"><button class="project-switch" data-action="project-prev" aria-label="上一个项目"><span class="triangle left"></span></button><h1 title="${esc(p.name)}">${esc(p.name)}</h1><button class="project-switch" data-action="project-next" aria-label="下一个项目"><span class="triangle right"></span></button></div>
+    <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd>${esc(p.region)}</dd></div><div><dt>语种</dt><dd>${esc(p.language)}</dd></div><div><dt>参数</dt><dd>${esc(p.phase)} · ${p.example?'示例':'本地'}</dd></div><div><dt>物料类型</dt><dd>标贴 / 包装 / 文档</dd></div></dl>
+    <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
+    <section><div class="section-head"><h2>BOM</h2><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
+      <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code||'LOCAL')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
+      <div class="row between" style="margin-top:6px"><span class="tiny faint">${p.example?'项目资料为示例，可替换为真实文案':'保存在这台设备'}</span><button class="section-link" data-action="import">＋ 添加文案</button></div>
+    </section><div class="rule"></div>
+    <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} VARIANTS</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
+    <div class="rule"></div><section><div class="section-head"><h2>项目成员</h2><span class="meta">${p.example?'示例团队':'项目协作'}</span></div><div class="members">${(p.members||[]).map((m,i)=>`<div class="member"><span class="avatar" style="--avatar:${m.color}">${esc(m.initials)}</span><span class="member-name">${esc(m.name)}</span><span class="member-role">${esc(m.role)}</span><span class="member-state ${i===0?'mint':'muted'}">${i===0?'负责人':'待确认'}</span></div>`).join('')}</div></section>
+    <div class="delivery-line"><span>下一次交付</span><strong>${esc(p.phase)} · ${esc(p.due)}</strong></div>
+    <div class="project-actions">${button('项目资料','project-settings')}${button('审核本项目 →','start-project','primary')}</div>
+  </div>`;
+}
+function reviewHTML(){
+  const p=job?jobProject():selectedProject();
+  return `<div class="view review-view">
+    <div class="review-topline"><button class="row" data-project-open="${esc(p.id)}">${icon('c-icon-home')}<span>${esc(p.code)}</span></button><span class="faint">/</span><span>文案审核</span><span class="status-pill" id="runBadge" data-status="idle"><i class="dot"></i><span>READY</span></span></div>
+    <div class="review-hero"><div><div class="eyebrow">审核进度 / DOCUMENTS</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过检查</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
+    <div class="current-document"><span class="dot mint"></span><span class="truncate" id="currentDocument">选择文案，开始本地预检</span><span class="doc-progress" id="currentStep">STANDBY</span></div>
+    <section class="workflow" id="workflow"><div class="flow-heading"><strong>REVIEW PIPELINE</strong><span id="pipelineMeta">4 STAGES · ${RULES.length} RULES</span></div>
+      <div class="agent-groups">${['文案解析','术语校对','规则审核','结果归档'].map((label,g)=>`<div class="agent-group"><div class="agent-grid">${Array.from({length:16},(_,i)=>`<i class="agent-cell" style="--node:${colors[i%4]}" data-agent="${g*16+i}"></i>`).join('')}</div><span class="agent-label">${label}</span></div>`).join('')}</div>
+      <div class="flow-transfer"><span>PROCESS → REVIEW → LAND</span></div>
+      <div class="rule-bars">${[['术语一致','#73bdf5'],['格式规范','#f3ce68'],['参数校验','#a48af0'],['文字检查','#6adeb1']].map(([name,color],i)=>`<div class="rule-bar"><span>${name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
+      <canvas class="flow-canvas" aria-hidden="true"></canvas><div class="legend"><span style="color:var(--yellow)"><i></i> 处理中</span><span style="color:var(--purple)"><i></i> 复核</span><span style="color:var(--green)"><i></i> 已归档</span><span>■ 一项检查</span></div>
+    </section>
+    <section class="execution"><div class="section-head"><h2>规则执行 / CONSOLE</h2><span class="meta" id="consoleState">local · ready</span></div><div class="console" id="console" aria-label="规则执行日志"></div></section>
+    <section class="queue-section"><div class="section-head"><h2>问题队列 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
+    <div class="review-controls"><div class="progress-meta"><span id="progressLabel">等待开始</span><span id="progressPercent">0%</span></div><div class="progress-track" role="progressbar" aria-label="审核进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="review-buttons" id="reviewButtons"></div><div class="review-source" id="reviewSource">LOCAL RULE CHECK · 文案仅在本机处理</div>
+    </div>
+  </div>`;
+}
+function reviewCounts(){const results=job?.results||[];return{issues:results.reduce((n,r)=>n+r.analysis.findings.length,0),passed:results.reduce((n,r)=>n+r.analysis.summary.passed,0),findings:results.flatMap(r=>r.analysis.findings.map(f=>({...f,documentId:r.document.id,filename:r.document.name})))};}
+function updateReview(){
+  const counts=reviewCounts();setFooter();
+  if(view!=='review')return;
+  const p=job?jobProject():selectedProject(),total=job?.documents.length??p.documents.length,done=job?.processed||0;
+  const fraction=job?.status==='complete'?1:job?Math.min(1,job.tick/(Math.max(1,total)*4)):0;
+  const badge={idle:'READY',running:'LIVE',paused:'PAUSED',complete:'COMPLETE',cancelled:'STOPPED'}[job?.status||'idle'];
+  $('runBadge').dataset.status=job?.status||'idle';$('runBadge').querySelector('span').textContent=badge;
+  $('doneCount').textContent=String(done).padStart(2,'0');$('totalCount').textContent='/ '+String(total).padStart(2,'0');
+  $('passCount').textContent=counts.passed;$('issueCount').textContent=counts.issues;
+  const current=job?.documents[Math.min(done,total-1)];
+  $('currentDocument').textContent=job?.status==='complete'?`${total} 份文案已检查，${counts.issues} 处需要确认`:current?.name||'选择文案，开始本地预检';
+  $('currentStep').textContent=job?.status==='complete'?'EXIT 0':job?`${Math.min(done+1,total)}/${total}`:'STANDBY';
+  $('consoleState').textContent=job?.status==='running'?'local · executing':job?.status==='complete'?'local · exit 0':job?.status==='paused'?'local · paused':'local · ready';
+  const logs=job?.logs?.slice(-4)||[{time:'00:00',level:'ready',text:`${RULES.length} 项规则已加载，等待文案输入。`}];
+  $('console').innerHTML=logs.map(l=>`<div class="console-line"><span class="log-time">${l.time}</span><span class="log-level ${l.level==='warn'?'warning':l.level==='pass'?'mint':'blue'}">${esc(l.level)}</span><span class="log-text">${esc(l.text)}</span></div>`).join('')+(job?.status==='running'?'<span class="cursor"></span>':'');
+  $('queueTotal').textContent=counts.issues>120?counts.issues+' · 显示前120项':counts.issues;
+  const findings=counts.findings.filter(f=>queueFilter==='all'||f.severity===queueFilter);
+  $('findings').innerHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>当前筛选下没有问题':job?.status==='running'?'检查进行中，问题将逐条归入这里':'规则执行后，在这里查看需要确认的文案'}</div>`;
+  const groups=[['project-name'],['extra-spaces','punctuation'],['placeholders','unit-spacing'],['repeated-words','absolute-claims','empty-document']];
+  for(let i=0;i<4;i++){
+    const ruleTotal=total*groups[i].length,checked=(job?.results||[]).reduce((n,r)=>n+r.analysis.rules.filter(rule=>groups[i].includes(rule.id)).length,0);
+    $('ruleBar'+i).style.width=`${ruleTotal?checked/ruleTotal*100:0}%`;$('ruleCount'+i).textContent=`${checked}/${ruleTotal}`;
+  }
+  const elapsed=job?elapsedMs():0,secs=Math.floor(elapsed/1000),clock=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
+  $('progressLabel').textContent=job?.status==='complete'?`已完成 · ${clock}`:job?.status==='paused'?`已暂停 · ${clock}`:job?.status==='cancelled'?'已停止，已检查结果可导出':job?`${['解析文案','运行规则','归集问题','保存结果'][job.tick%4]} · ${clock}`:'等待开始';
+  $('progressPercent').textContent=Math.floor(fraction*100)+'%';$('progressFill').style.width=fraction*100+'%';$('progressTrack').setAttribute('aria-valuenow',String(Math.floor(fraction*100)));
+  const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('导出','export')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
+  $('reviewSource').textContent=job?.example?'示例文案 · 动效演练 · 结果来自本地规则检查':'LOCAL RULE CHECK · 文案仅在本机处理';
+  visual?.setState({running:job?.status==='running',progress:fraction,group:job?job.tick%4:0,reducedMotion:reducedMotion()});
+}
+function elapsedMs(){if(!job)return 0;return job.elapsed+(job.status==='running'?performance.now()-job.resumedAt:0);}
+function log(level,text){const ms=elapsedMs();job.logs.push({time:`${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}`,level,text});if(job.logs.length>150)job.logs.shift();}
+function notifyDesktop(){const counts=reviewCounts();desktop?.updateStatus({state:job?.status==='cancelled'?'idle':job?.status||'idle',progress:job?Math.round(job.tick/Math.max(1,job.documents.length*4)*100):0,issues:counts.issues});}
+function beginRun(projectId,documents,forceExample=null){
+  if(!documents.length){notify('先添加一份文案，再开始审核。');return;}
+  if(activeJob()){notify('当前审核尚未结束，可先暂停或停止。');setView('review');return;}
+  clearInterval(jobTimer);
+  const example=forceExample??documents.every(d=>d.example);
+  job={projectId,projectName:workspace.projects.find(p=>p.id===projectId)?.name||'',documents:documents.map(d=>({...d})),example,status:'running',processed:0,tick:0,results:[],logs:[],elapsed:0,resumedAt:performance.now(),startedAt:new Date().toISOString()};
+  log('init',`${documents.length} 份文案 · ${RULES.length} 项本地规则`);log('info',example?'示例演练开始，方块按检查阶段推进。':'文案已载入本机内存，不上传服务器。');
+  setView('review');notifyDesktop();scheduleRun();
+}
+function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?360:65);}
+function tick(){
+  if(job?.status!=='running')return;
+  const d=job.documents[job.processed],phase=job.tick%4;
+  if(!d){finishRun();return;}
+  if(phase===0){log('read',`${d.filename||d.name} · ${d.text.length} chars`);}
+  if(phase===1){job.pending=analyzeDocument(d.text,{filename:d.filename||d.name,projectName:job.projectName});log('exec',`rules.check() · ${job.pending.summary.totalRules} rules evaluated`);}
+  if(phase===2){log(job.pending.findings.length?'warn':'pass',`${d.name} · ${job.pending.findings.length} 处待确认`);}
+  if(phase===3){job.results.push({document:d,analysis:job.pending});job.processed++;job.pending=null;log('save',`report.append() · ${job.processed}/${job.documents.length} documents`);}
+  job.tick++;updateReview();
+  if(phase===3)for(let i=0;i<4;i++)visual?.pulse(i,i,job.processed/job.documents.length);
+  notifyDesktop();if(job.processed===job.documents.length)finishRun();
+}
+function finishRun(){
+  clearInterval(jobTimer);jobTimer=null;if(!job||job.status==='complete')return;
+  job.elapsed=elapsedMs();job.status='complete';log('pass','全部规则执行完成 · report ready · exit 0');
+  const p=jobProject();for(const r of job.results){const doc=p.documents.find(d=>d.id===r.document.id);if(doc&&doc.text===r.document.text&&doc.name===r.document.name&&p.name===job.projectName){doc.status='reviewed';doc.lastReviewedAt=new Date().toISOString();doc.lastIssueCount=r.analysis.findings.length;}}
+  const actual=job.results.filter(r=>!r.document.example);
+  workspace.history.push({id:newId('run'),projectId:p.id,example:!actual.length,total:actual.length,clean:actual.filter(r=>!r.analysis.findings.length).length,issues:actual.reduce((n,r)=>n+r.analysis.findings.length,0),elapsed:job.elapsed*actual.length/Math.max(1,job.results.length),date:new Date().toISOString()});workspace.history=workspace.history.slice(-50);persist();updateReview();notifyDesktop();
+}
+function pauseRun(){if(job?.status!=='running')return;job.elapsed=elapsedMs();job.status='paused';clearInterval(jobTimer);jobTimer=null;log('info','检查已暂停，当前结果已保留。');updateReview();notifyDesktop();}
+function resumeRun(){if(job?.status!=='paused')return;job.resumedAt=performance.now();job.status='running';log('info','继续从当前文案执行。');scheduleRun();updateReview();notifyDesktop();}
+function stopRun(){if(!activeJob())return;job.elapsed=elapsedMs();job.status='cancelled';clearInterval(jobTimer);jobTimer=null;log('info','审核已停止，已完成的检查结果可导出。');updateReview();notifyDesktop();}
+function openDialog(title,html){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;if(!$('dialog').open)$('dialog').showModal();}
+function closeDialog(){$('dialog').close();}
+function showDocument(id,projectId){
+  const p=workspace.projects.find(p=>p.id===projectId),d=p?.documents.find(d=>d.id===id);if(!d)return;
+  openDialog(d.name,`<p class="small muted" style="margin-bottom:10px">${esc(d.code||'LOCAL')} · ${d.example?'示例文案':'本地文案'}</p><div class="document-preview" id="documentText"></div><div class="dialog-actions"><button class="button" data-edit-document="${esc(d.id)}" data-project="${esc(p.id)}">编辑文案</button><button class="button primary" data-review-document="${esc(d.id)}" data-project="${esc(p.id)}">审核此文案 →</button></div>`);$('documentText').textContent=d.text;
+}
+function editDocument(id,projectId){
+  const p=workspace.projects.find(p=>p.id===projectId),d=p?.documents.find(d=>d.id===id);if(!d)return;
+  openDialog('编辑文案',`<form id="editDocumentForm"><div class="field"><label for="editDocName">文档名称</label><input id="editDocName" maxlength="100" required></div><div class="field"><label for="editDocText">文案正文</label><textarea id="editDocText" maxlength="200000" required></textarea><small>保存后作为本地文案，用真实规则检查。</small></div><div class="dialog-actions"><button class="button primary" type="submit">保存文案</button></div></form>`);$('editDocName').value=d.name;$('editDocText').value=d.text;
+  $('editDocumentForm').onsubmit=e=>{e.preventDefault();d.name=$('editDocName').value.trim();d.text=$('editDocText').value;d.example=false;d.status='pending';persist();closeDialog();render();notify('文案已保存到本机。');};
+}
+function importDialog(){
+  if(activeJob()){notify('请先完成或停止当前审核，再添加并审核新文案。');setView('review');return;}
+  openDialog('添加待审核文案',`<form id="importForm"><div class="field"><label for="importProject">所属项目</label><select id="importProject">${workspace.projects.map(p=>`<option value="${esc(p.id)}"${p.id===workspace.selectedProject?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div class="field"><label for="importName">文档名称</label><input id="importName" placeholder="例如：国内版-快速指南" maxlength="100" required></div><div class="field"><label for="importText">粘贴文案</label><textarea id="importText" placeholder="在这里粘贴要检查的文案…" maxlength="200000" required></textarea></div><p class="small faint">支持 UTF-8 文本、Markdown、CSV、JSON。单文件最大 2 MB。</p><div class="dialog-actions">${button('选择文件','pick-files')}<button type="submit" class="button primary">添加并审核 →</button></div></form>`);
+  $('importForm').onsubmit=e=>{e.preventDefault();const p=workspace.projects.find(p=>p.id===$('importProject').value);const name=$('importName').value.trim(),text=$('importText').value;if(!name||!text.trim())return;const d={id:newId('doc'),name,filename:name+'.txt',code:'LOCAL',text,example:false,status:'pending',createdAt:new Date().toISOString()};p.documents.push(d);workspace.selectedProject=p.id;persist();closeDialog();beginRun(p.id,[d],false);};
+}
+async function readFiles(files){
+  if(activeJob()){notify('请先完成或停止当前审核，再导入文件。');return;}
+  const p=workspace.projects.find(p=>p.id===$('importProject')?.value)||selectedProject(),added=[],skipped=[];
+  for(const file of files){
+    if(!/\.(txt|md|csv|json)$/i.test(file.name)||file.size>2*1024*1024){skipped.push(file.name);continue;}
+    try {const bytes=await file.arrayBuffer();const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);if(!text.trim()||text.includes('\0'))throw new Error('不是有效文本');
+      const d={id:newId('doc'),name:file.name.replace(/\.[^.]+$/,''),filename:file.name,code:'LOCAL',text,example:false,status:'pending',createdAt:new Date().toISOString()};p.documents.push(d);added.push(d);
+    }catch{skipped.push(file.name);}
+  }
+  if(added.length){workspace.selectedProject=p.id;persist();closeDialog();beginRun(p.id,added,false);}
+  if(skipped.length)notify(`${skipped.length} 份文件未导入：请使用有效 UTF-8 文本，且不超过 2 MB。`);
+}
+function projectSettings(){
+  const p=selectedProject();
+  openDialog('项目资料',`<form id="projectForm"><div class="field"><label for="projectName">项目名称</label><input id="projectName" maxlength="80" required></div><div class="field"><label for="projectRegion">上市区域 / 语种</label><div class="row"><input id="projectRegion" maxlength="50" aria-label="上市区域"><input id="projectLanguage" maxlength="50" aria-label="语种"></div></div><div class="field"><label for="projectPdm">PDM 地址</label><input id="projectPdm" type="url" placeholder="https://…" maxlength="2000"><small>仅保存项目网址，不读取 PDM 数据。</small></div><div class="dialog-actions"><button class="button primary" type="submit">保存项目</button></div></form>`);
+  $('projectName').value=p.name;$('projectRegion').value=p.region;$('projectLanguage').value=p.language;$('projectPdm').value=p.pdmUrl||'';
+  $('projectForm').onsubmit=e=>{e.preventDefault();const url=$('projectPdm').value.trim();if(url&&!/^https:\/\//i.test(url)){notify('PDM 地址需要以 https:// 开头。');return;}p.name=$('projectName').value.trim();p.region=$('projectRegion').value.trim();p.language=$('projectLanguage').value.trim();p.pdmUrl=url;persist();closeDialog();render();};
+}
+function newProjectDialog(){
+  openDialog('新建项目',`<form id="newProjectForm"><div class="field"><label for="newName">项目名称</label><input id="newName" required maxlength="60" placeholder="例如：R601P 新产品"></div><div class="field"><label for="newCode">项目简称</label><input id="newCode" required maxlength="18" placeholder="R601P"></div><div class="field"><label for="newDue">计划交付日期</label><input type="date" id="newDue" required value="${new Date(Date.now()+21*86400000).toLocaleDateString('sv-SE')}"></div><div class="dialog-actions"><button class="button primary" type="submit">创建项目</button></div></form>`);
+  $('newProjectForm').onsubmit=e=>{e.preventDefault();const p={id:newId('project'),createdAt:new Date().toISOString(),name:$('newName').value.trim(),code:$('newCode').value.trim(),due:$('newDue').value,start:new Date().toLocaleDateString('sv-SE'),phase:'T0',region:'待填写',language:'待填写',color:'#b7ead4',documents:[],skus:[],members:[],example:false,pdmUrl:''};workspace.projects.push(p);workspace.selectedProject=p.id;persist();closeDialog();setView('project');};
+}
+function editPlan(id){
+  const p=workspace.projects.find(p=>p.id===id);if(!p)return;
+  openDialog(`${p.code} · 阶段计划`,`<form id="planForm"><div class="field"><label for="planPhase">当前阶段</label><select id="planPhase">${['T0','DVT','PVT','MP'].map(s=>`<option${p.phase===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="planStart">开始日期</label><input id="planStart" type="date" required value="${esc(p.start)}"></div><div class="field"><label for="planEnd">交付日期</label><input id="planEnd" type="date" required value="${esc(p.due)}"></div><div class="dialog-actions"><button class="button primary" type="submit">更新计划</button></div></form>`);
+  $('planForm').onsubmit=e=>{e.preventDefault();if($('planEnd').value<$('planStart').value){notify('交付日期不能早于开始日期。');return;}p.phase=$('planPhase').value;p.start=$('planStart').value;p.due=$('planEnd').value;persist();closeDialog();render();};
+}
+function showReport(){
+  if(!job?.results.length){notify('完成第一份文案检查后即可查看结果。');return;}
+  const counts=reviewCounts();
+  openDialog('审核结果',`<div class="report-summary"><span><strong>${job.results.length}</strong> 文档</span><span><strong>${counts.passed}</strong> 通过规则</span><span><strong>${counts.issues}</strong> 待确认</span></div><p class="tiny faint" style="margin-bottom:12px">${job.example?'示例演练 · ':''}本地规则预检结果，提示项需人工判断。${counts.issues>200?'此处显示前 200 项，导出包含全部结果。':''}</p><div class="report-list">${counts.findings.length?counts.findings.slice(0,200).map(f=>`<div class="report-item"><div class="${f.severity==='error'?'error':'warning'}">${esc(f.ruleName)} · L${f.line}</div><strong>${esc(f.message)}</strong><div class="tiny faint">${esc(f.filename)}</div><blockquote>${esc(f.excerpt)}</blockquote><div class="suggestion">${esc(f.suggestion)}</div></div>`).join(''):'<div class="empty-state"><span class="checkmark">✓</span>所检查规则未发现问题</div>'}</div><div class="dialog-actions">${button('导出 JSON 报告','export','primary')}${button('关闭','close-dialog')}</div>`);
+}
+function showFinding(id,documentId){
+  const r=job?.results.find(r=>r.document.id===documentId),f=r?.analysis.findings.find(f=>f.id===id);if(!f)return;
+  openDialog(f.ruleName,`<div class="dialog-copy"><p class="${f.severity==='error'?'error':'warning'}">${esc(f.message)}</p><p class="tiny faint">${esc(r.document.name)} · 第 ${f.line} 行</p><div class="document-preview" style="margin:10px 0">${esc(f.excerpt)}</div><p class="mint">${esc(f.suggestion)}</p></div><div class="dialog-actions"><button class="button primary" data-edit-document="${esc(documentId)}" data-project="${esc(job.projectId)}">编辑原文</button>${button('全部结果','report')}</div>`);
+}
+function exportReport(){
+  if(!job?.results.length){notify('还没有可以导出的检查结果。');return;}
+  const report={application:'Review Desk',version:1,createdAt:new Date().toISOString(),project:job.projectName,example:job.example,status:job.status,summary:{documents:job.results.length,...reviewCounts(),findings:undefined},results:job.results.map(r=>({document:r.document.name,...r.analysis}))};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`review-${jobProject().code.replace(/[^\w-]/g,'_')}-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('审核报告已导出。');
+}
+async function showSettings(){
+  const prefs=desktop?await desktop.getPreferences():null;
+  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。未接入远程模型、PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
+  $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*4):0,group:job?job.tick%4:0,reducedMotion:reducedMotion()});};
+  if(desktop){$('pinSetting').onchange=async e=>{const p=await desktop.setPinned(e.target.checked);$('pinWindow').setAttribute('aria-pressed',String(p.pinned));};$('loginSetting').onchange=async e=>{const p=await desktop.setPreferences({launchAtLogin:e.target.checked});e.target.checked=p.launchAtLogin;};}
+}
+const actions={
+  'import':importDialog,'pick-files':()=>{$('fileInput').value='';$('fileInput').click();},
+  'new-project':newProjectDialog,'project-settings':projectSettings,
+  'start-project':()=>{const p=selectedProject();beginRun(p.id,p.documents);},
+  'project-prev':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i-1+workspace.projects.length)%workspace.projects.length].id);},
+  'project-next':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i+1)%workspace.projects.length].id);},
+  'timeline-prev':()=>{timelineOffset--;render();},'timeline-next':()=>{timelineOffset++;render();},
+  pause:pauseRun,resume:resumeRun,stop:stopRun,report:showReport,export:exportReport,
+  replay:()=>{if(job){const p=jobProject(),ids=new Set(job.documents.map(d=>d.id));beginRun(p.id,p.documents.filter(d=>ids.has(d.id)));}},
+  'close-dialog':closeDialog,
+};
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.view){setView(b.dataset.view);return;}
+  if(b.dataset.action){actions[b.dataset.action]?.();return;}
+  if(b.dataset.expand){expanded=expanded===b.dataset.expand?null:b.dataset.expand;render();return;}
+  if(b.dataset.projectOpen){selectProject(b.dataset.projectOpen);return;}
+  if(b.dataset.document){showDocument(b.dataset.document,b.dataset.project);return;}
+  if(b.dataset.editDocument){editDocument(b.dataset.editDocument,b.dataset.project);return;}
+  if(b.dataset.reviewDocument){const p=workspace.projects.find(p=>p.id===b.dataset.project);closeDialog();beginRun(p.id,p.documents.filter(d=>d.id===b.dataset.reviewDocument));return;}
+  if(b.dataset.bomFilter){bomFilter=b.dataset.bomFilter;render();return;}
+  if(b.dataset.queueFilter){queueFilter=b.dataset.queueFilter;document.querySelectorAll('[data-queue-filter]').forEach(x=>x.classList.toggle('selected',x.dataset.queueFilter===queueFilter));updateReview();return;}
+  if(b.dataset.finding){showFinding(b.dataset.finding,b.dataset.findingDocument);return;}
+  if(b.dataset.plan){editPlan(b.dataset.plan);return;}
+  if(b.dataset.stage){editPlan(selectedProject().id);}
+});
+$('openSettings').onclick=showSettings;$('closeDialog').onclick=closeDialog;
+$('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
+$('fileInput').onchange=e=>readFiles([...e.target.files]);
+$('workspaceInfo').onclick=()=>openDialog('工作区数据',`<div class="dialog-copy"><p>初始项目、成员、SKU 与历史数字用于展示界面。导入和编辑后的文案会保存在本机，审核结果来自实际运行的 ${RULES.length} 项本地规则。</p><p>窗口收起后，当前审核会继续。退出应用会结束正在运行的检查；已保存的项目与历史统计会保留。</p></div><div class="dialog-actions">${button('添加真实文案','import','primary')}</div>`);
+if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}
+document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
+reducedSystem.addEventListener('change',()=>{if(view==='review')updateReview();});
+render();

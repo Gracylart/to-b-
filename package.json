@@ -1,0 +1,83 @@
+{
+  "name": "copy-review-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A glass macOS menu bar workspace for copy review and project planning.",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "author": "Gracylart",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check-build.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "prepare:electron": "node node_modules/electron/install.js",
+    "build:mac": "npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir zip --arm64",
+    "build:mac:dir": "npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir --arm64"
+  },
+  "devDependencies": {
+    "electron": "44.9.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.gracylart.copyreviewdesk",
+    "productName": "文案审核台",
+    "artifactName": "Copy-Review-Desk-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "desktop/assets"
+    },
+    "files": [
+      "desktop/**/*",
+      "dist/**/*",
+      "package.json",
+      "THIRD_PARTY_NOTICES.md",
+      "!dist/**/*.map",
+      "!dist/**/.DS_Store",
+      "!desktop/assets/app.iconset/**/*"
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "electronDist": "node_modules/electron/dist",
+    "extraResources": [
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "licenses/Electron-LICENSE"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "licenses/Chromium-LICENSES.html"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "desktop/assets/app.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "minimumSystemVersion": "12.0",
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSHighResolutionCapable": true
+      },
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["arm64"]
+        }
+      ]
+    }
+  }
+}
