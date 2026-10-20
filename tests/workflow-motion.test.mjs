@@ -60,3 +60,13 @@ test('file content changes per-rule cadence and source text fragments at the top
 test('matrix density remains full and never exceeds five by five',()=>{const groups=ruleGroups();assert.deepEqual(groups.map(g=>[g.rows,g.cols]),[[4,4],[4,5],[4,5],[5,5]]);for(const group of groups){assert.ok(group.rows<=5&&group.cols<=5);assert.ok(group.rows*group.cols>=16);} });
 
 test('one through eight matrices share enabled rules without exceeding 5x5',()=>{for(let count=1;count<=8;count++){const groups=matrixGroups(undefined,count);assert.equal(groups.length,count);assert.ok(groups.every(g=>g.rows<=5&&g.cols<=5));assert.deepEqual([...new Set(groups.flatMap(g=>g.ids))].sort(),ruleGroups().flatMap(g=>g.ids).sort());const {visual:v}=fixture(groups);v.setState({running:true,status:'running'});for(let t=0;t<1600;t+=16)v.frame(t);assert.ok(v.serial.every(n=>n>0));v.destroy();}});
+
+test('each bar and its landing destination use its own completion total',()=>{
+  const {visual:v}=fixture();v.setChecks([0,0,0,0],[7,14,14,21]);v.setState({running:true,status:'running'});
+  v.setChecks([7,14,7,21],[7,14,14,21]);
+  const checkpoints=v.particles.filter(p=>p.checkpoint);
+  assert.deepEqual(checkpoints.map(p=>p.to.x),[10,10,5,10]);
+  v.setState({running:false,status:'complete',progress:1});for(let t=0;t<1500;t+=16)v.frame(t);
+  assert.deepEqual(v.fills.map(fill=>fill.style.width),['100%','100%','50%','100%']);
+  v.setChecks([7,14,14,21],[7,14,14,21]);assert.ok(v.fills.every(fill=>fill.style.width==='100%'));v.destroy();
+});

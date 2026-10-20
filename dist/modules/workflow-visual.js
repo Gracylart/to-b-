@@ -54,7 +54,7 @@ export class WorkflowVisual {
     this.paint();this.wake();
   }
   setChecks(checked,totals){
-    this.totals=totals;const scale=Math.max(1,...totals);
+    this.totals=totals;
     checked.forEach((target,g)=>{
       if(target===this.targets[g])return;
       this.targets[g]=target;
@@ -62,12 +62,12 @@ export class WorkflowVisual {
       // Counters and bar heads advance when the actual result batch lands.
       const delay=100+g*87,flight=410+(g*47)%150,at=this.clock+delay+flight;
       const origin=this.groups.find(group=>group.category===g)||this.groups[0],row=origin?(this.serial[origin.index]+g)%origin.rows:0,from=origin?this.point(origin.index,row,origin.cols-1):null,track=this.destinations[g];
-      if(from&&track){const to={x:track.x+track.width*target/scale,y:track.y};this.particles.push({from:{...from},to,at:this.clock+delay,duration:flight,g,size:4.5,checkpoint:true});}
+      if(from&&track){const to={x:track.x+track.width*target/Math.max(1,totals[g]),y:track.y};this.particles.push({from:{...from},to,at:this.clock+delay,duration:flight,g,size:4.5,checkpoint:true});}
       this.landings.push({at,g,value:target});
     });this.paintBars();this.wake();
   }
   spawn(g){
-    const category=this.groups[g].category,config=this.profiles[g],serial=this.serial[g]++,burst=1+(serial%config.burst),scale=Math.max(1,...this.totals);
+    const category=this.groups[g].category,config=this.profiles[g],serial=this.serial[g]++,burst=1+(serial%config.burst);
     for(let b=0;b<burst;b++){
       const row=(serial+b+g)%this.groups[g].rows,start=this.clock+b*65,duration=config.duration+(serial*37+b*19)%230;
       this.loops.push({g,row,start,duration});
@@ -76,7 +76,7 @@ export class WorkflowVisual {
       const source=this.sourcePoint;
       if(source)this.particles.push({from:{x:source.x+source.width/2-4,y:source.y-38+((serial+b)*17)%91},to:{...first},at:start,duration:240+(serial%3)*45,g:category,size:2.5,incoming:true});
       // Fine chips describe activity, not extra successful checks.
-      const end=Math.max(.025,this.values[category]/scale),flight=390+(serial*37+g*51+b*23)%240;
+      const end=Math.max(.025,this.values[category]/Math.max(1,this.totals[category])),flight=390+(serial*37+g*51+b*23)%240;
       this.particles.push({from:{...last},to:{x:track.x+track.width*end,y:track.y},at:start+duration,duration:flight,g:category,size:2.5+(serial+b)%3*.6});
     }
     this.next[g]=this.clock+config.gap*(.6+((serial*17+g*13)%11)/10);
@@ -103,8 +103,7 @@ export class WorkflowVisual {
     }
   }
   paintBars(){
-    const scale=Math.max(1,...this.totals);
-    this.fills.forEach((fill,g)=>{fill.style.width=this.values[g]/scale*100+'%';this.counts[g].textContent=`${this.values[g]}/${this.totals[g]}`;});
+    this.fills.forEach((fill,g)=>{fill.style.width=Math.min(1,this.values[g]/Math.max(1,this.totals[g]))*100+'%';this.counts[g].textContent=`${this.values[g]}/${this.totals[g]}`;});
   }
   paint(){
     const ctx=this.ctx;ctx?.clearRect(0,0,this.width||0,this.height||0);
