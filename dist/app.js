@@ -44,7 +44,7 @@ function homeHTML(){
   const avg=hasReal?(realHistory.reduce((n,h)=>n+h.elapsed,0)/Math.max(1,totalDocs)/1000).toFixed(1)+'s':'1.6s';
   const metrics=[['平均耗时',avg],['通过率',hasReal?Math.round(passed/Math.max(1,totalDocs)*100)+'%':'98.9%'],['已校文档',hasReal?String(totalDocs):'93'],['审核项目',hasReal?String(new Set(realHistory.map(h=>h.projectId)).size):'24']];
   return `<div class="view home-view">
-    <h1 class="home-intro">HOW ABOUT SCANNING SOMETHING?</h1>
+    <div class="home-intro">项目总览 <span>OVERVIEW</span></div>
     <dl class="metrics">${metrics.map(([k,v])=>`<div class="metric"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <div class="rule"></div>
     <section aria-label="审核活动"><div class="section-head"><h2>活动</h2><span class="meta">${hasReal?'本地累计':'示例累计'} ${hasReal?totalDocs:93} 文件 ${icon('a-icon-trends')}</span></div>
@@ -73,7 +73,7 @@ function projectHTML(){
     <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
     <section><div class="section-head"><h2>BOM</h2><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
       <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code||'LOCAL')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
-      <div class="row between" style="margin-top:6px"><span class="tiny faint">${p.example?'项目资料为示例，可替换为真实文案':'保存在这台设备'}</span><button class="section-link" data-action="import">＋ 添加文案</button></div>
+      <div class="row between" style="margin-top:6px"><span class="tiny faint">${p.example?'示例项目':'本地项目'}</span><button class="section-link" data-action="import">＋ 添加文案</button></div>
     </section><div class="rule"></div>
     <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} VARIANTS</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
     <div class="rule"></div><section><div class="section-head"><h2>项目成员</h2><span class="meta">${p.example?'示例团队':'项目协作'}</span></div><div class="members">${(p.members||[]).map((m,i)=>`<div class="member"><span class="avatar" style="--avatar:${m.color}">${esc(m.initials)}</span><span class="member-name">${esc(m.name)}</span><span class="member-role">${esc(m.role)}</span><span class="member-state ${i===0?'mint':'muted'}">${i===0?'负责人':'待确认'}</span></div>`).join('')}</div></section>
@@ -85,16 +85,16 @@ function reviewHTML(){
   const p=job?jobProject():selectedProject();
   return `<div class="view review-view">
     <div class="review-topline"><button class="row" data-project-open="${esc(p.id)}">${icon('c-icon-home')}<span>${esc(p.code)}</span></button><span class="faint">/</span><span>文案审核</span><span class="status-pill" id="runBadge" data-status="idle"><i class="dot"></i><span>READY</span></span></div>
-    <div class="review-hero"><div><div class="eyebrow">审核进度 / DOCUMENTS</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过检查</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
-    <div class="current-document"><span class="dot mint"></span><span class="truncate" id="currentDocument">选择文案，开始本地预检</span><span class="doc-progress" id="currentStep">STANDBY</span></div>
-    <section class="workflow" id="workflow"><div class="flow-heading"><strong>REVIEW PIPELINE</strong><span id="pipelineMeta">4 STAGES · ${RULES.length} RULES</span></div>
-      <div class="agent-groups">${['文案解析','术语校对','规则审核','结果归档'].map((label,g)=>`<div class="agent-group"><div class="agent-grid">${Array.from({length:16},(_,i)=>`<i class="agent-cell" style="--node:${colors[i%4]}" data-agent="${g*16+i}"></i>`).join('')}</div><span class="agent-label">${label}</span></div>`).join('')}</div>
-      <div class="flow-transfer"><span>PROCESS → REVIEW → LAND</span></div>
+    <div class="review-hero"><div><div class="eyebrow">已检查</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过规则</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
+    <section class="workflow" id="workflow"><div class="flow-heading"><strong>审核工作流</strong><span class="source-state">READY</span></div>
+      <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">copy.txt</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>文案输入</span><b>▍</b></div></div>
+      <div class="agent-groups">${['术语','格式','参数','文字'].map((label,g)=>`<div class="agent-group"><div class="agent-grid">${Array.from({length:16},(_,i)=>`<i class="agent-cell" style="--node:${colors[i%4]}" data-agent="${g*16+i}"></i>`).join('')}</div><span class="agent-label">${label}</span></div>`).join('')}</div>
+      </div><div class="flow-transfer" aria-hidden="true"></div>
       <div class="rule-bars">${[['术语一致','#73bdf5'],['格式规范','#f3ce68'],['参数校验','#a48af0'],['文字检查','#6adeb1']].map(([name,color],i)=>`<div class="rule-bar"><span>${name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
-      <canvas class="flow-canvas" aria-hidden="true"></canvas><div class="legend"><span style="color:var(--yellow)"><i></i> 处理中</span><span style="color:var(--purple)"><i></i> 复核</span><span style="color:var(--green)"><i></i> 已归档</span><span>■ 一项检查</span></div>
+      <canvas class="flow-canvas" aria-hidden="true"></canvas><div class="legend"><span style="color:var(--yellow)"><i></i> 处理中</span><span style="color:var(--purple)"><i></i> 复核</span><span style="color:var(--green)"><i></i> 已归档</span><span class="muted">${RULES.length} 项规则</span></div>
     </section>
-    <section class="execution"><div class="section-head"><h2>规则执行 / CONSOLE</h2><span class="meta" id="consoleState">local · ready</span></div><div class="console" id="console" aria-label="规则执行日志"></div></section>
-    <section class="queue-section"><div class="section-head"><h2>问题队列 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
+    <section class="execution"><div class="section-head"><h2>执行日志</h2><span class="meta" id="consoleState">local · ready</span></div><div class="console" id="console" aria-label="规则执行日志"></div></section>
+    <section class="queue-section"><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
     <div class="review-controls"><div class="progress-meta"><span id="progressLabel">等待开始</span><span id="progressPercent">0%</span></div><div class="progress-track" role="progressbar" aria-label="审核进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
       <div class="review-buttons" id="reviewButtons"></div><div class="review-source" id="reviewSource">LOCAL RULE CHECK · 文案仅在本机处理</div>
     </div>
@@ -111,25 +111,24 @@ function updateReview(){
   $('doneCount').textContent=String(done).padStart(2,'0');$('totalCount').textContent='/ '+String(total).padStart(2,'0');
   $('passCount').textContent=counts.passed;$('issueCount').textContent=counts.issues;
   const current=job?.documents[Math.min(done,total-1)];
-  $('currentDocument').textContent=job?.status==='complete'?`${total} 份文案已检查，${counts.issues} 处需要确认`:current?.name||'选择文案，开始本地预检';
-  $('currentStep').textContent=job?.status==='complete'?'EXIT 0':job?`${Math.min(done+1,total)}/${total}`:'STANDBY';
+  $('currentDocument').textContent=current?.filename||current?.name||p.documents[0]?.filename||'copy.txt';
+  $('currentStep').textContent=job?`${Math.min(done+1,total)}/${total}`:`${total} 份`;
   $('consoleState').textContent=job?.status==='running'?'local · executing':job?.status==='complete'?'local · exit 0':job?.status==='paused'?'local · paused':'local · ready';
   const logs=job?.logs?.slice(-4)||[{time:'00:00',level:'ready',text:`${RULES.length} 项规则已加载，等待文案输入。`}];
   $('console').innerHTML=logs.map(l=>`<div class="console-line"><span class="log-time">${l.time}</span><span class="log-level ${l.level==='warn'?'warning':l.level==='pass'?'mint':'blue'}">${esc(l.level)}</span><span class="log-text">${esc(l.text)}</span></div>`).join('')+(job?.status==='running'?'<span class="cursor"></span>':'');
   $('queueTotal').textContent=counts.issues>120?counts.issues+' · 显示前120项':counts.issues;
   const findings=counts.findings.filter(f=>queueFilter==='all'||f.severity===queueFilter);
-  $('findings').innerHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>当前筛选下没有问题':job?.status==='running'?'检查进行中，问题将逐条归入这里':'规则执行后，在这里查看需要确认的文案'}</div>`;
+  $('findings').innerHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>未发现问题':job?.status==='running'?'正在检查…':'等待开始'}</div>`;
   const groups=[['project-name'],['extra-spaces','punctuation'],['placeholders','unit-spacing'],['repeated-words','absolute-claims','empty-document']];
-  for(let i=0;i<4;i++){
-    const ruleTotal=total*groups[i].length,checked=(job?.results||[]).reduce((n,r)=>n+r.analysis.rules.filter(rule=>groups[i].includes(rule.id)).length,0);
-    $('ruleBar'+i).style.width=`${ruleTotal?checked/ruleTotal*100:0}%`;$('ruleCount'+i).textContent=`${checked}/${ruleTotal}`;
-  }
+  const totals=groups.map(g=>total*g.length),checked=groups.map(g=>(job?.results||[]).reduce((n,r)=>n+r.analysis.rules.filter(rule=>g.includes(rule.id)).length,0));
+  visual?.setChecks(checked,totals);
+  visual?.setSource(current||p.documents[0],job?.status||'idle');
   const elapsed=job?elapsedMs():0,secs=Math.floor(elapsed/1000),clock=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
   $('progressLabel').textContent=job?.status==='complete'?`已完成 · ${clock}`:job?.status==='paused'?`已暂停 · ${clock}`:job?.status==='cancelled'?'已停止，已检查结果可导出':job?`${['解析文案','运行规则','归集问题','保存结果'][job.tick%4]} · ${clock}`:'等待开始';
   $('progressPercent').textContent=Math.floor(fraction*100)+'%';$('progressFill').style.width=fraction*100+'%';$('progressTrack').setAttribute('aria-valuenow',String(Math.floor(fraction*100)));
   const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('导出','export')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
-  $('reviewSource').textContent=job?.example?'示例文案 · 动效演练 · 结果来自本地规则检查':'LOCAL RULE CHECK · 文案仅在本机处理';
-  visual?.setState({running:job?.status==='running',progress:fraction,group:job?job.tick%4:0,reducedMotion:reducedMotion()});
+  $('reviewSource').textContent=job?.example?'示例演练':'本地预检';
+  visual?.setState({running:job?.status==='running',progress:fraction,status:job?.status||'idle',reducedMotion:reducedMotion()});
 }
 function elapsedMs(){if(!job)return 0;return job.elapsed+(job.status==='running'?performance.now()-job.resumedAt:0);}
 function log(level,text){const ms=elapsedMs();job.logs.push({time:`${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}`,level,text});if(job.logs.length>150)job.logs.shift();}
@@ -143,7 +142,7 @@ function beginRun(projectId,documents,forceExample=null){
   log('init',`${documents.length} 份文案 · ${RULES.length} 项本地规则`);log('info',example?'示例演练开始，方块按检查阶段推进。':'文案已载入本机内存，不上传服务器。');
   setView('review');notifyDesktop();scheduleRun();
 }
-function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?360:65);}
+function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?800:65);}
 function tick(){
   if(job?.status!=='running')return;
   const d=job.documents[job.processed],phase=job.tick%4;
@@ -153,7 +152,6 @@ function tick(){
   if(phase===2){log(job.pending.findings.length?'warn':'pass',`${d.name} · ${job.pending.findings.length} 处待确认`);}
   if(phase===3){job.results.push({document:d,analysis:job.pending});job.processed++;job.pending=null;log('save',`report.append() · ${job.processed}/${job.documents.length} documents`);}
   job.tick++;updateReview();
-  if(phase===3)for(let i=0;i<4;i++)visual?.pulse(i,i,job.processed/job.documents.length);
   notifyDesktop();if(job.processed===job.documents.length)finishRun();
 }
 function finishRun(){
@@ -226,7 +224,7 @@ function exportReport(){
 async function showSettings(){
   const prefs=desktop?await desktop.getPreferences():null;
   openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。未接入远程模型、PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
-  $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*4):0,group:job?job.tick%4:0,reducedMotion:reducedMotion()});};
+  $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*4):0,status:job?.status||'idle',reducedMotion:reducedMotion()});};
   if(desktop){$('pinSetting').onchange=async e=>{const p=await desktop.setPinned(e.target.checked);$('pinWindow').setAttribute('aria-pressed',String(p.pinned));};$('loginSetting').onchange=async e=>{const p=await desktop.setPreferences({launchAtLogin:e.target.checked});e.target.checked=p.launchAtLogin;};}
 }
 const actions={

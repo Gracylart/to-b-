@@ -1,6 +1,6 @@
 # 文案审核台 · Review Desk
 
-面向多项目文案工作的 macOS 菜单栏应用，采用 365 × 789 的玻璃质感窗口。支持项目规划、文案导入与编辑、8 项本地规则预检，以及随检查阶段推进的方块阵列、粒子、日志和进度动效。
+面向多项目文案工作的 macOS 菜单栏应用，采用 365 × 760 的玻璃质感窗口。支持项目规划、文案导入与编辑、8 项本地规则预检，以及随检查阶段推进的方块阵列、粒子、日志和进度动效。
 
 [设计原型 · Figma](https://www.figma.com/design/IBHECNJfQK2Dymy3CLCZAV/Codex-Dynamic-Workflow?node-id=173-2234) · [项目源码 · GitHub](https://github.com/Gracylart/to-b-) · [原始动效示例](https://codex-workflow-gracy.blush-tetra-1726.chatgpt.site/)
 
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | A / TOTAL · 总览 | 总体数据、过往与当前项目、多项目并行时间轴 | 展开项目文档、新建项目、修改阶段和交付计划、切换时间范围 |
 | B / PROJECT · 项目 | 单个项目的资料、BOM 文档、SKU、成员和交付信息 | 点击大标题两侧的三角按钮切换项目；查看、编辑或审核文案 |
-| C / REVIEW · 审核 | 文案检查过程与结果 | 方块阵列和粒子跟随阶段推进；查看规则执行日志、进度、问题位置和修改建议 |
+| C / REVIEW · 审核 | 文案检查过程与结果 | 左侧文案流、4 组独立节奏方阵、粒子批次落点与检查计数联动；查看规则执行日志、进度、问题位置和修改建议 |
 
 初始项目、成员、SKU 和历史数字为示例数据。导入或编辑后的文案会执行实际的本地规则检查；真实文案的完成记录用于本地累计统计，示例演练不计入真实历史统计。
 
@@ -80,7 +80,7 @@ python3 -m http.server 8765 --directory dist
 | 命令 | 用途 |
 | --- | --- |
 | `npm start` | 启动开发版菜单栏应用 |
-| `npm test` | 运行规则引擎及桌面安全测试 |
+| `npm test` | 运行规则引擎、动效状态和桌面安全测试 |
 | `npm run check` | 检查 JavaScript 语法、入口资源、CSP 和打包文件 |
 | `npm run icons` | 生成原创菜单栏模板图标与 macOS 应用图标 |
 | `npm run prepare:electron` | 下载并校验锁定版本的 Electron |
@@ -101,7 +101,7 @@ npm run build:mac
 
 ```text
 release/mac-arm64/文案审核台.app
-release/Copy-Review-Desk-1.0.0-arm64.zip
+release/Copy-Review-Desk-1.0.1-arm64.zip
 ```
 
 构建目标为 macOS `arm64`，最低系统版本声明为 macOS 12；当前没有 Intel 安装包。安装包使用本机 **ad hoc 签名**，未使用 Developer ID，也未经过 Apple 公证。它适合本机运行和开发验证；对外分发前应配置正式签名与公证。构建不会捆绑 SF Pro，系统界面字体使用 macOS 自带字体。
@@ -130,3 +130,7 @@ THIRD_PARTY_NOTICES.md      来源、致谢与第三方许可
 界面基于用户提供的 Figma Glass Shell A / B / C 设计；动效延续本仓库原始 Codex Dynamic Workflow 演示，原始源码提交为 `ad01e19816fb4c141905aeb7ded460f9c64091af`。
 
 菜单栏交互形态参考 [Javis603 / Token Monitor](https://github.com/Javis603/token-monitor)（MIT 许可），本项目作为独立应用实现。感谢 Electron、electron-builder、Inter 和 Roboto Mono 项目。具体版权与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+### 动效节奏
+
+审核台保留原宽屏演示的左侧文本队列，并用两行方阵适配窄窗口。四组采用不同频率和批量，行内依次点亮，带拖尾的粒子飞向固定落点；实际规则批次落地后才更新横条计数。示例演练约 22 秒，真实预检仍按实际处理速度完成。暂停会冻结方阵、文本扫描和飞行粒子，继续时从原位置恢复；减少动效模式直接显示结果。

@@ -1,6 +1,6 @@
 {
   "name": "copy-review-desk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "A glass macOS menu bar workspace for copy review and project planning.",
   "type": "module",
@@ -71,11 +71,15 @@
       "target": [
         {
           "target": "dir",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         }
       ]
     }

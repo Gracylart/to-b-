@@ -167,7 +167,7 @@ function createPanel() {
   readyToShow = false;
   panel = new BrowserWindow({
     width: 365,
-    height: 789,
+    height: 760,
     show: false,
     frame: false,
     transparent: true,

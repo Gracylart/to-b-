@@ -68,7 +68,7 @@ function trayStatus(status) {
   return '审核台';
 }
 
-function panelBounds(trayBounds, workArea, desired = { width: 365, height: 789 }) {
+function panelBounds(trayBounds, workArea, desired = { width: 365, height: 760 }) {
   const margin = 8;
   const width = Math.min(desired.width, Math.max(1, workArea.width - margin * 2));
   const height = Math.min(desired.height, Math.max(1, workArea.height - margin * 2));

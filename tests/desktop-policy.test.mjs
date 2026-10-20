@@ -122,7 +122,7 @@ test('panel stays inside normal and small work areas, including negative display
     assert.ok(result.x + result.width <= area.x + area.width - 8);
     assert.ok(result.y + result.height <= area.y + area.height - 8);
     assert.ok(result.width > 0 && result.width <= 365);
-    assert.ok(result.height > 0 && result.height <= 789);
+    assert.ok(result.height > 0 && result.height <= 760);
     assert.ok(Number.isInteger(result.x) && Number.isInteger(result.y));
   }
 });
@@ -130,7 +130,7 @@ test('panel stays inside normal and small work areas, including negative display
 test('panel centers below the tray and clamps an oversized requested window', () => {
   assert.deepEqual(
     panelBounds({ x: 600, y: 0, width: 80, height: 24 }, { x: 0, y: 24, width: 1440, height: 1000 }),
-    { x: 458, y: 32, width: 365, height: 789 },
+    { x: 458, y: 32, width: 365, height: 760 },
   );
   assert.deepEqual(
     panelBounds({ x: 0, y: 0, width: 0, height: 0 }, { x: 100, y: 100, width: 400, height: 300 }, { width: 900, height: 1200 }),
