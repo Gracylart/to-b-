@@ -29,8 +29,18 @@ export class WorkflowVisual {
     this.root.querySelector('.source-state').textContent={running:'SCANNING',paused:'PAUSED',complete:'CHECKED',cancelled:'STOPPED',idle:'READY'}[status]||'READY';
     if(key===this.sourceKey)return;
     this.sourceKey=key;this.sourceStart=this.clock;this.profiles=this.groups.map(g=>fileCadence(document,g));this.next=this.groups.map((g,i)=>this.clock+i*65);
-    this.root.querySelector('.source-name').textContent=document?.filename||document?.name||'copy.txt';
-    this.sourceLines=(document?.text||'等待文案输入').split(/\r?\n/).map((text,i)=>({text,line:i+1})).filter(l=>l.text.trim()).slice(0,1000);
+    this.root.querySelector('.source-name').textContent='review.worker.ts';
+    const count=this.groups.reduce((n,g)=>n+g.ids.length,0);
+    this.sourceLines=[
+      'const rules = loadRules();',
+      `// ${count} enabled checks`,
+      'for (const file of queue) {',
+      '  const ast = parse(file);',
+      '  await scan(ast, rules);',
+      '  emit("file:checked");',
+      '  progress.advance();',
+      '} // next document',
+    ].map((text,i)=>({text,line:i+1}));
     this.sourceOffset=-1;this.paintSource(0);
   }
   setLogs(logs){
@@ -44,7 +54,7 @@ export class WorkflowVisual {
     this.sourceOffset=offset;
     const feed=this.root.querySelector('.source-feed');feed.replaceChildren();
     for(let i=0;i<7;i++){
-      const log=i%3===2&&this.logs.length?this.logs[(Math.floor(offset/3)+Math.floor(i/3))%this.logs.length]:null;
+      const log=null;
       const line=log?{text:log.text,line:'›'}:this.sourceLines[(offset+i)%Math.max(1,this.sourceLines.length)];if(!line)continue;
       const row=document.createElement('div');row.className='source-row'+(log?' log-row':'')+(i===3?' reading':'');row.title=line.text;
       const num=document.createElement('span');num.textContent=log?'›':String(line.line).padStart(2,'0');

@@ -7,7 +7,7 @@ test('BOM, multi-person roles and per-project review configuration survive reloa
   p.documents.push({id:'new',name:'包装',code:'BOM-123',text:'',status:'pending'});
   p.members=[{name:'甲',role:'结构',initials:'甲',color:'#7ebeff'},{name:'乙',role:'结构',initials:'乙',color:'#7ebeff'}];p.enabledRules=['unit-spacing'];p.matrixCount=9;
   saveWorkspace(ws,storage);const restored=loadWorkspace(storage).projects[0];
-  assert.equal(restored.documents.at(-1).code,'BOM-123');assert.equal(restored.documents.at(-1).text,'');assert.equal(restored.members.length,2);assert.deepEqual(restored.enabledRules,['unit-spacing']);assert.equal(restored.matrixCount,9);
+  assert.equal(restored.documents.at(-1).code,'BOM-123');assert.equal(restored.documents.at(-1).text,'');assert.equal(restored.members.length,2);assert.deepEqual(restored.enabledRules,['unit-spacing']);assert.equal(restored.matrixCount,4);
 });
 test('legacy sample team migrates but an edited team remains intact',()=>{
   const ws=createWorkspace(),storage=memory();

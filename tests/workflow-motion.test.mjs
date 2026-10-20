@@ -37,16 +37,16 @@ test('reduced motion settles queued checks without particles or request loops',(
   const {visual:v}=fixture();v.setState({running:true,status:'running'});v.setChecks([1,2,2,3],[1,2,2,3]);v.frame(0);
   v.setState({running:true,status:'running',reducedMotion:true});assert.deepEqual(v.values,[1,2,2,3]);assert.equal(v.particles.length,0);assert.equal(v.loops.length,0);v.destroy();
 });
-test('input preview treats markup as text and bounds the number of rendered rows',()=>{
+test('code stream never exposes document content and bounds rendered rows',()=>{
   const {visual:v,single}=fixture();v.setSource({id:'test',name:'copy',text:'<img src=x onerror=alert(1)>\nhello'},'running');
-  assert.equal(single['.source-feed'].children.length,7);assert.equal(single['.source-feed'].children[0].children[1].textContent,'<img src=x onerror=alert(1)>');v.destroy();
+  assert.equal(single['.source-feed'].children.length,7);assert.equal(single['.source-feed'].children[0].children[1].textContent,'const rules = loadRules();');v.destroy();
 });
 
-test('disabled rules change matrix density and remove whole groups; disabled groups never emit',()=>{
+test('disabled categories retain equal grids but never emit',()=>{
   const groups=matrixGroups(['project-name','unit-spacing'],2),{visual:v}=fixture(groups);
-  assert.deepEqual(groups.map(g=>g.ids.length),[1,1]);assert.equal(v.nodes.length,32);
+  assert.deepEqual(groups.map(g=>g.ids.length),[1,0,1,0]);assert.equal(v.nodes.length,100);
   v.setState({running:true,status:'running'});for(let t=0;t<3000;t+=16)v.frame(t);
-  assert.equal(v.serial.length,2);assert.ok(v.serial.every(n=>n>0));assert.ok(v.particles.every(p=>[0,2].includes(p.g)));v.destroy();
+  assert.equal(v.serial.length,4);assert.ok(v.serial[0]>0&&v.serial[2]>0);assert.equal(v.serial[1],0);assert.equal(v.serial[3],0);assert.ok(v.particles.every(p=>[0,2].includes(p.g)));v.destroy();
 });
 test('file content changes per-rule cadence and source text fragments at the top',()=>{
   const groups=ruleGroups(),plain={id:'a',name:'a',text:'简单的介绍文案'},numeric={id:'b',name:'b',text:'65W 3000mAh 100V 50Hz 21kg 45mm TODO'};
@@ -59,7 +59,7 @@ test('file content changes per-rule cadence and source text fragments at the top
 
 test('matrix density remains full and never exceeds five by five',()=>{const groups=ruleGroups();assert.deepEqual(groups.map(g=>[g.rows,g.cols]),[[4,4],[4,5],[4,5],[5,5]]);for(const group of groups){assert.ok(group.rows<=5&&group.cols<=5);assert.ok(group.rows*group.cols>=16);} });
 
-test('one through nine matrices share enabled rules without exceeding 5x5',()=>{for(let count=1;count<=9;count++){const groups=matrixGroups(undefined,count);assert.equal(groups.length,count);assert.ok(groups.every(g=>g.rows<=5&&g.cols<=5));assert.deepEqual([...new Set(groups.flatMap(g=>g.ids))].sort(),ruleGroups().flatMap(g=>g.ids).sort());const {visual:v}=fixture(groups);v.setState({running:true,status:'running'});for(let t=0;t<1600;t+=16)v.frame(t);assert.ok(v.serial.every(n=>n>0));v.destroy();}});
+test('legacy matrix preferences normalize to four equal 5x5 groups',()=>{for(let count=1;count<=9;count++){const groups=matrixGroups(undefined,count);assert.equal(groups.length,4);assert.ok(groups.every(g=>g.rows===5&&g.cols===5));assert.deepEqual([...new Set(groups.flatMap(g=>g.ids))].sort(),ruleGroups().flatMap(g=>g.ids).sort());const {visual:v}=fixture(groups);v.setState({running:true,status:'running'});for(let t=0;t<1600;t+=16)v.frame(t);assert.ok(v.serial.every(n=>n>0));v.destroy();}});
 
 test('each bar and its landing destination use its own completion total',()=>{
   const {visual:v}=fixture();v.setChecks([0,0,0,0],[7,14,14,21]);v.setState({running:true,status:'running'});
@@ -71,4 +71,4 @@ test('each bar and its landing destination use its own completion total',()=>{
   v.setChecks([7,14,14,21],[7,14,14,21]);assert.ok(v.fills.every(fill=>fill.style.width==='100%'));v.destroy();
 });
 
-test('execution logs share the text stream and remain inert plain text',()=>{const {visual:v,single}=fixture();v.setSource({id:'doc',text:'line one\nline two'});v.setLogs([{time:'00:01',level:'read',text:'<img src=x onerror=bad()> printed'}]);const rows=single['.source-feed'].children;assert.equal(rows.length,7);assert.ok(rows[2].className.includes('log-row'));assert.equal(rows[2].children[1].textContent,'00:01 read <img src=x onerror=bad()> printed');v.destroy();});
+test('raw logs cannot replace the scrolling code with document text',()=>{const {visual:v,single}=fixture();v.setSource({id:'x',text:'private source text'});v.setLogs([{time:'00:00',level:'info',text:'<script>private log</script>'}]);const rows=single['.source-feed'].children;assert.equal(rows.length,7);assert.ok(rows.every(r=>!r.children[1].textContent.includes('private')));v.destroy();});

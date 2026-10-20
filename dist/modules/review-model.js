@@ -13,16 +13,10 @@ export function ruleGroups(ids){
     return {...g,index,color:BLUE_PALETTE[index],ids:active,cols:count>1?5:4,rows:count?Math.min(5,3+Math.ceil(count/2)):0};
   });
 }
-export function matrixCount(value){return Number.isInteger(value)?Math.min(9,Math.max(1,value)):4;}
-export function matrixGroups(ids,count=4){
-  const categories=ruleGroups(ids).filter(g=>g.ids.length),rules=categories.flatMap(g=>g.ids);if(!rules.length)return [];
-  const total=matrixCount(count),buckets=Array.from({length:total},()=>[]);
-  // Keep category blocks together where possible, then distribute additional lanes.
-  if(total>=categories.length){categories.forEach((g,i)=>buckets[i].push(...g.ids));for(let i=categories.length;i<total;i++)buckets[i].push(...categories[(i-categories.length)%categories.length].ids);}
-  else categories.forEach((g,i)=>buckets[i%total].push(...g.ids));
-  return buckets.map((ids,index)=>{const category=RULE_GROUPS.findIndex(g=>g.ids.includes(ids[0])),kinds=RULE_GROUPS.filter(g=>g.ids.some(id=>ids.includes(id)));
-    return {ids,index,category,color:BLUE_PALETTE[category],short:kinds.length>1?'综合':RULE_GROUPS[category].short,cols:ids.length>1?5:4,rows:Math.min(5,3+Math.ceil(ids.length/2))};
-  });
+// Legacy saved matrix counts normalize to the four fixed rule categories.
+export function matrixCount(){return 4;}
+export function matrixGroups(ids){
+  return ruleGroups(ids).map(g=>({...g,category:g.index,cols:5,rows:5}));
 }
 // Workload drives visual cadence only; all enabled checks still run exactly once.
 export function fileCadence(doc,group){

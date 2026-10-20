@@ -6,7 +6,7 @@ import {WorkflowVisual} from './modules/workflow-visual.js';
 const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
-let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false;
+let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false;
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
 const currentMatrices=()=>matrixGroups(currentRules(),job&&view==='review'?job.matrixCount:selectedProject().matrixCount);
@@ -25,9 +25,6 @@ function setView(next){
 }
 function selectProject(id){if(workspace.projects.some(p=>p.id===id)){workspace.selectedProject=id;expanded=id;persist();setView('project');}}
 function setFooter(){
-  const count=workspace.projects.reduce((n,p)=>n+p.documents.filter(d=>!d.example).length,0);
-  $('footerStatus').textContent=job?.status==='running'?'正在本地预检':job?.status==='paused'?'预检已暂停':'本地工作区';
-  $('workspaceInfo').textContent=count?`${count} 份本地文档`:'示例数据';
   $('reviewDot').hidden=!activeJob();
 }
 function render(){
@@ -54,15 +51,17 @@ function homeHTML(){
       <div class="heatmap" aria-label="最近 28 周审核活动">${Array.from({length:196},(_,i)=>{const col=Math.floor(i/7),n=(i*17+col*7)%19;const day=new Date(activityStart);day.setDate(day.getDate()+i);const key=day.toLocaleDateString('sv-SE'),count=daily.get(key)||0;const intensity=hasReal?(count?Math.min(.95,.3+count/20):.05):col<14?.04+n/260:col<23?.08+n/55:.2+n/24;return `<span class="heat-cell" style="--intensity:${Math.min(.95,intensity).toFixed(2)}" title="${hasReal?key+' · '+count+' 份':'示例活动 · 第 '+(col+1)+' 周'}"></span>`;}).join('')}</div>
       <div class="heat-months">${Array.from({length:7},(_,i)=>{const d=new Date(activityEnd.getFullYear(),activityEnd.getMonth()-6+i,1);return `<span>${d.getMonth()+1}月</span>`;}).join('')}</div>
     </section><div class="rule"></div>
-    <section><div class="section-head"><h2>过往与当前项目</h2><button class="section-link" data-action="new-project">＋ 新项目</button></div>
+    <section><div class="section-head"><h2>过往项目</h2><button class="section-link" data-action="new-project">＋ 新项目</button></div>
       <div class="project-list past-projects">${workspace.projects.map(p=>`<div class="project-group ${expanded===p.id?'expanded':''}"><button class="project-summary" data-expand="${esc(p.id)}" aria-expanded="${expanded===p.id}">${icon('a-icon-claude')}<span>${esc(p.code)}</span><span class="project-stage">${esc(p.phase)}_${formatDate(p.due)}</span><span class="chevron">${expanded===p.id?'−':'＋'}</span></button>
         <div class="project-docs">${p.documents.slice(0,7).map(d=>`<button class="mini-doc" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="doc-name">${esc(d.name)}</span><span class="doc-code">${esc(d.code||'LOCAL')}</span></button>`).join('')}<button class="mini-doc" data-project-open="${esc(p.id)}"><span class="mint">查看项目详情</span><span>→</span></button></div></div>`).join('')}</div>
     </section>
-    <section class="planning"><div class="section-head"><h2>并行项目规划</h2><div class="week-nav"><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 天</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} 项目</span></div></section>
+    <section class="planning"><div class="section-head"><h2>项目规划</h2><div class="week-nav"><button data-action="plan-edit">${planEditing?'完成':'编辑日期'}</button><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 天</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} 项目</span></div></section>
     <div class="home-actions">${button('＋ 导入文案','import','grow')}${button('开始审核 →','start-project','primary grow')}</div>
   </div>`;
 }
 function timelineHTML(){
+  if(planEditing)return `<div class="plan-editor"><div class="plan-edit-head"><span>项目</span><span>开始日期</span><span>结束日期</span></div>${workspace.projects.map(p=>`<div class="plan-edit-row" data-plan-row="${esc(p.id)}"><span title="${esc(p.name)}">${esc(p.code)}</span><input type="date" aria-label="${esc(p.code)} 开始日期" data-plan-field="start" value="${esc(p.start)}" required><input type="date" aria-label="${esc(p.code)} 结束日期" data-plan-field="due" value="${esc(p.due)}" required></div>`).join('')}</div>`;
+
   const base=new Date('2026-10-20T12:00:00');base.setDate(base.getDate()+timelineOffset*7);const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const rangeStart=iso(base),labels=Array.from({length:5},(_,i)=>{const d=new Date(base);d.setDate(d.getDate()+i*6);return `${d.getMonth()+1}/${d.getDate()}`;});
   const now=new Date(),today=(new Date(now.getFullYear(),now.getMonth(),now.getDate(),12)-base)/86400000/24;
@@ -72,6 +71,7 @@ function projectHTML(){
   const p=selectedProject(),docs=p.documents.filter(d=>bomFilter==='all'||d.status!=='reviewed');
   return `<div class="view project-view">
     <div class="project-heading"><button class="project-switch" data-action="project-prev" aria-label="上一个项目"><span class="triangle left"></span></button><h1 title="${esc(p.name)}">${esc(p.name)}</h1><button class="project-switch" data-action="project-next" aria-label="下一个项目"><span class="triangle right"></span></button></div>
+<details class="project-members" open><summary>项目成员 <span class="meta">${(p.members||[]).length}</span><span class="member-toggle"></span></summary><section><div class="section-head"><span></span><button class="section-link" data-action="members">管理</button></div><div class="members role-members">${[...new Set([...TEAM_ROLES,...(p.members||[]).map(m=>m.role)])].map(role=>{const members=(p.members||[]).filter(m=>m.role===role);return `<div class="team-role"><span class="role-name">${esc(role)}</span><div class="role-people">${members.length?members.map(m=>`<span class="person-chip" title="${esc(m.name)}">${esc(m.name)}</span>`).join(''):'<span class="unassigned">—</span>'}</div></div>`;}).join('')}</div></section></details>
     <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.region)} <span>⌄</span></button></dd></div><div><dt>语种</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.language)} <span>⌄</span></button></dd></div></dl>
     <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
     <section><div class="section-head"><h2>BOM</h2><button class="section-link" data-action="add-bom">＋ 添加</button><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
@@ -79,7 +79,6 @@ function projectHTML(){
       
     </section><div class="rule"></div>
     <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} 版本</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
-    <div class="rule"></div><section><div class="section-head"><h2>项目成员 <span class="meta inline">${(p.members||[]).length}</span></h2><button class="section-link" data-action="members">管理</button></div><div class="members role-members">${[...new Set([...TEAM_ROLES,...(p.members||[]).map(m=>m.role)])].map(role=>{const members=(p.members||[]).filter(m=>m.role===role);return `<div class="team-role"><span class="role-name">${esc(role)}</span><div class="role-people">${members.length?members.map(m=>`<span class="person-chip" title="${esc(m.name)}">${esc(m.name)}</span>`).join(''):'<span class="unassigned">—</span>'}</div></div>`;}).join('')}</div></section>
     <div class="delivery-line"><span>下一次交付</span><strong>${esc(p.phase)} · ${esc(p.due)}</strong></div>
     <div class="project-actions">${button('项目资料','project-settings')}${button('审核本项目 →','start-project','primary')}</div>
   </div>`;
@@ -90,8 +89,8 @@ function reviewHTML(){
     <div class="review-topline"><button class="row" data-project-open="${esc(p.id)}">${icon('c-icon-home')}<span>${esc(p.code)}</span></button><span class="faint">/</span><span>文案审核</span><span class="status-pill" id="runBadge" data-status="idle"><i class="dot"></i><span>READY</span></span></div>
     <div class="review-hero"><div><div class="eyebrow">已检查</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过规则</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
     <section class="workflow" id="workflow"><div class="flow-heading"><button class="rule-config-link" data-action="rules">审核规范 <span>${currentRules().length}</span> <span aria-hidden="true">⚙</span></button><span class="source-state">READY</span></div>
-      <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">copy.txt</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>文案 / 执行日志</span><b>▍</b></div></div>
-      <div class="agent-groups" data-group-count="${matrices.length}">${matrices.map(g=>`<div class="agent-group"><div class="agent-grid" style="--cols:${g.cols};--rows:${g.rows};--node:${g.color}">${Array.from({length:g.rows},(_,row)=>Array.from({length:g.cols},(_,col)=>`<i class="agent-cell" data-group="${g.index}" data-row="${row}" data-col="${col}" title="${esc(RULES.find(r=>r.id===g.ids[row%g.ids.length]).name)} · ${['读取','定位','检查','复核','汇总'].slice(5-g.cols)[col]}"></i>`).join('')).join('')}</div><span class="agent-label">${g.short} <span>${g.ids.length}</span></span></div>`).join('')}</div>
+      <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">review.worker.ts</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>rule-engine</span><b>▍</b></div></div>
+      <div class="agent-groups" data-group-count="${matrices.length}">${matrices.map(g=>`<div class="agent-group"><div class="agent-grid" style="--cols:${g.cols};--rows:${g.rows};--node:${g.color}">${Array.from({length:g.rows},(_,row)=>Array.from({length:g.cols},(_,col)=>`<i class="agent-cell" data-group="${g.index}" data-row="${row}" data-col="${col}" title="${esc(RULES.find(r=>r.id===g.ids[row%g.ids.length])?.name||'未启用')} · ${['读取','定位','检查','复核','汇总'].slice(5-g.cols)[col]}"></i>`).join('')).join('')}</div><span class="agent-label">${g.short} <span>${g.ids.length}</span></span></div>`).join('')}</div>
       </div><div class="flow-transfer" aria-hidden="true"></div>
       <div class="rule-bars">${groups.map((g,i)=>`<div class="rule-bar" ${g.ids.length?'':'hidden'}><span>${g.name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${g.color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
       <canvas class="flow-canvas" aria-hidden="true"></canvas>
@@ -114,7 +113,7 @@ function updateReview(){
   $('doneCount').textContent=String(done).padStart(2,'0');$('totalCount').textContent='/ '+String(total).padStart(2,'0');
   $('passCount').textContent=counts.passed;$('issueCount').textContent=counts.issues;
   const current=job?.documents[Math.min(done,total-1)];
-  $('currentDocument').textContent=current?.filename||current?.name||p.documents[0]?.filename||'copy.txt';
+  $('currentDocument').textContent='review.worker.ts';
   $('currentStep').textContent=job?`${Math.min(done+1,total)}/${total}`:`${total} 份`;
   visual?.setLogs(job?.logs||[{time:'00:00',level:'ready',text:`${currentRules().length} 项规范已就绪`}]);
   $('queueTotal').textContent=counts.issues>120?counts.issues+' · 显示前120项':counts.issues;
@@ -193,9 +192,8 @@ function editMembers(){
 }
 function editRules(){
   const p=job&&view==='review'?jobProject():selectedProject(),ids=enabledRuleIds(p.enabledRules);
-  openDialog('审核规范',`<form id="rulesForm"><div class="matrix-control"><label for="matrixCount">并行方阵</label><input id="matrixCount" type="range" min="1" max="9" step="1" value="${matrixCount(p.matrixCount)}"><output id="matrixCountLabel" for="matrixCount">${matrixCount(p.matrixCount)} 组</output></div><p class="field-hint">方阵对应规范类别，密度随启用项变化。${activeJob()?'本轮使用开始时的配置，修改将在下次审核生效。':''}</p>${ruleGroups().map(g=>`<fieldset class="rule-fieldset"><legend>${g.name}</legend>${g.ids.map(id=>{const r=RULES.find(r=>r.id===id);return `<label class="rule-option"><input type="checkbox" name="rule" value="${id}" ${ids.includes(id)?'checked':''}><span>${r.name}<small>${r.description}</small></span></label>`;}).join('')}</fieldset>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存规范</button></div></form>`);
-  $('matrixCount').oninput=e=>{$('matrixCountLabel').textContent=e.target.value+' 组';};
-  $('rulesForm').onsubmit=e=>{e.preventDefault();const ids=[...$('rulesForm').querySelectorAll('input:checked')].map(input=>input.value);if(!ids.length){notify('请至少保留一项规范');return;}p.enabledRules=ids;p.matrixCount=matrixCount(Number($('matrixCount').value));persist();closeDialog();if(!activeJob()){job=null;render();}else notify('已保存，下次审核生效');};
+  openDialog('审核规范',`<form id="rulesForm"><p class="field-hint">4 组固定 5×5 方阵，扫描频率随文件与启用规范变化。${activeJob()?'本轮使用开始时的配置，修改将在下次审核生效。':''}</p>${ruleGroups().map(g=>`<fieldset class="rule-fieldset"><legend>${g.name}</legend>${g.ids.map(id=>{const r=RULES.find(r=>r.id===id);return `<label class="rule-option"><input type="checkbox" name="rule" value="${id}" ${ids.includes(id)?'checked':''}><span>${r.name}<small>${r.description}</small></span></label>`;}).join('')}</fieldset>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存规范</button></div></form>`);
+  $('rulesForm').onsubmit=e=>{e.preventDefault();const ids=[...$('rulesForm').querySelectorAll('input:checked')].map(input=>input.value);if(!ids.length){notify('请至少保留一项规范');return;}p.enabledRules=ids;p.matrixCount=4;persist();closeDialog();if(!activeJob()){job=null;render();}else notify('已保存，下次审核生效');};
 }
 function importDialog(){
   if(activeJob()){notify('请先完成或停止当前审核，再添加并审核新文案。');setView('review');return;}
@@ -239,10 +237,12 @@ function newProjectDialog(){
   openDialog('新建项目',`<form id="newProjectForm"><div class="field"><label for="newName">项目名称</label><input id="newName" required maxlength="60" placeholder="例如：R601P 新产品"></div><div class="field"><label for="newCode">项目简称</label><input id="newCode" required maxlength="18" placeholder="R601P"></div><div class="field"><label for="newDue">计划交付日期</label><input type="date" id="newDue" required value="${new Date(Date.now()+21*86400000).toLocaleDateString('sv-SE')}"></div><div class="dialog-actions"><button class="button primary" type="submit">创建项目</button></div></form>`);
   $('newProjectForm').onsubmit=e=>{e.preventDefault();const p={id:newId('project'),createdAt:new Date().toISOString(),name:$('newName').value.trim(),code:$('newCode').value.trim(),due:$('newDue').value,start:new Date().toLocaleDateString('sv-SE'),phase:'T0',region:'待填写',language:'待填写',color:'#7ebeff',documents:[],skus:[],members:[],example:false,pdmUrl:''};workspace.projects.push(p);workspace.selectedProject=p.id;persist();closeDialog();setView('project');};
 }
-function editPlan(id){
-  const p=workspace.projects.find(p=>p.id===id);if(!p)return;
-  openDialog(`${p.code} · 阶段计划`,`<form id="planForm"><div class="field"><label for="planPhase">当前阶段</label><select id="planPhase">${['T0','DVT','PVT','MP'].map(s=>`<option${p.phase===s?' selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="planStart">开始日期</label><input id="planStart" type="date" required value="${esc(p.start)}"></div><div class="field"><label for="planEnd">交付日期</label><input id="planEnd" type="date" required value="${esc(p.due)}"></div><div class="dialog-actions"><button class="button primary" type="submit">更新计划</button></div></form>`);
-  $('planForm').onsubmit=e=>{e.preventDefault();if($('planEnd').value<$('planStart').value){notify('交付日期不能早于开始日期。');return;}p.phase=$('planPhase').value;p.start=$('planStart').value;p.due=$('planEnd').value;persist();closeDialog();render();};
+function editPlan(){planEditing=true;setView('home');}
+function finishPlanEdit(){
+  const rows=[...document.querySelectorAll('[data-plan-row]')];
+  const changes=rows.map(row=>({p:workspace.projects.find(p=>p.id===row.dataset.planRow),start:row.querySelector('[data-plan-field="start"]'),due:row.querySelector('[data-plan-field="due"]')}));
+  for(const c of changes){if(!c.start.reportValidity()||!c.due.reportValidity())return false;if(c.due.value<c.start.value){notify('结束日期不能早于开始日期');c.due.focus();return false;}}
+  for(const c of changes){c.p.start=c.start.value;c.p.due=c.due.value;}persist();return true;
 }
 function showReport(){
   if(!job?.results.length){notify('完成第一份文案检查后即可查看结果。');return;}
@@ -270,7 +270,8 @@ const actions={
   'start-project':()=>{const p=selectedProject();beginRun(p.id,p.documents);},
   'project-prev':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i-1+workspace.projects.length)%workspace.projects.length].id);},
   'project-next':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i+1)%workspace.projects.length].id);},
-  'timeline-prev':()=>{timelineOffset--;render();},'timeline-next':()=>{timelineOffset++;render();},
+  'plan-edit':()=>{if(planEditing&&!finishPlanEdit())return;planEditing=!planEditing;render();},
+  'timeline-prev':()=>{if(planEditing&&!finishPlanEdit())return;timelineOffset--;render();},'timeline-next':()=>{if(planEditing&&!finishPlanEdit())return;timelineOffset++;render();},
   pause:pauseRun,resume:resumeRun,stop:stopRun,report:showReport,export:exportReport,
   replay:()=>{if(job){const p=jobProject(),ids=new Set(job.documents.map(d=>d.id));beginRun(p.id,p.documents.filter(d=>ids.has(d.id)));}},
   'close-dialog':closeDialog,
@@ -290,10 +291,10 @@ document.addEventListener('click',e=>{
   if(b.dataset.plan){editPlan(b.dataset.plan);return;}
   if(b.dataset.stage){editPlan(selectedProject().id);}
 });
+document.addEventListener('change',e=>{if(e.target.matches('[data-plan-field]'))finishPlanEdit();});
 $('openSettings').onclick=showSettings;$('closeDialog').onclick=closeDialog;
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
-$('workspaceInfo').onclick=()=>openDialog('工作区数据',`<div class="dialog-copy"><p>初始项目、成员、SKU 与历史数字用于展示界面。导入和编辑后的文案会保存在本机，审核结果来自实际运行的 ${RULES.length} 项本地规则。</p><p>窗口收起后，当前审核会继续。退出应用会结束正在运行的检查；已保存的项目与历史统计会保留。</p></div><div class="dialog-actions">${button('添加真实文案','import','primary')}</div>`);
 if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}
 document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='review'&&queueExpanded&&e.key==='Escape'){setQueueExpanded(false);e.stopPropagation();}
 if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
