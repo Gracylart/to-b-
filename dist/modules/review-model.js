@@ -13,7 +13,7 @@ export function ruleGroups(ids){
     return {...g,index,color:BLUE_PALETTE[index],ids:active,cols:count>1?5:4,rows:count?Math.min(5,3+Math.ceil(count/2)):0};
   });
 }
-export function matrixCount(value){return Number.isInteger(value)?Math.min(8,Math.max(1,value)):4;}
+export function matrixCount(value){return Number.isInteger(value)?Math.min(9,Math.max(1,value)):4;}
 export function matrixGroups(ids,count=4){
   const categories=ruleGroups(ids).filter(g=>g.ids.length),rules=categories.flatMap(g=>g.ids);if(!rules.length)return [];
   const total=matrixCount(count),buckets=Array.from({length:total},()=>[]);

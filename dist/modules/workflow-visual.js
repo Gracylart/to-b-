@@ -10,7 +10,7 @@ export class WorkflowVisual {
     this.fills=[...root.querySelectorAll('.bar-fill')];this.counts=[...root.querySelectorAll('.rule-count')];
     this.particles=[];this.loops=[];this.landings=[];this.next=groups.map((_,i)=>i*75);this.serial=groups.map(()=>0);
     this.clock=0;this.lastTime=null;this.running=false;this.progress=0;this.reducedMotion=reducedMotion;this.alive=true;this.frameId=0;
-    this.values=[0,0,0,0];this.targets=[0,0,0,0];this.totals=[0,0,0,0];this.sourceKey='';this.sourceLines=[];
+    this.values=[0,0,0,0];this.targets=[0,0,0,0];this.totals=[0,0,0,0];this.sourceKey='';this.sourceLines=[];this.logs=[];
     this.observer=new ResizeObserver(()=>this.measure());this.observer.observe(root);
     this.onVisibility=()=>{this.lastTime=null;if(!document.hidden)this.wake();};document.addEventListener('visibilitychange',this.onVisibility);
     this.measure();this.paint();
@@ -33,15 +33,21 @@ export class WorkflowVisual {
     this.sourceLines=(document?.text||'等待文案输入').split(/\r?\n/).map((text,i)=>({text,line:i+1})).filter(l=>l.text.trim()).slice(0,1000);
     this.sourceOffset=-1;this.paintSource(0);
   }
-  paintSource(offset){
-    if(offset===this.sourceOffset)return;
-    if(this.sourceOffset>=0&&this.running&&!this.reducedMotion)this.dissolveLine(this.sourceLines[this.sourceOffset%Math.max(1,this.sourceLines.length)]?.text||'');
+  setLogs(logs){
+    const next=logs.slice(-5).map(l=>({text:`${l.time} ${l.level} ${l.text}`,level:l.level}));
+    const key=JSON.stringify(next);if(key===this.logKey)return;this.logKey=key;this.logs=next;
+    this.paintSource(Math.max(0,this.sourceOffset||0),true);
+  }
+  paintSource(offset,force=false){
+    if(offset===this.sourceOffset&&!force)return;
+    if(offset!==this.sourceOffset&&this.sourceOffset>=0&&this.running&&!this.reducedMotion)this.dissolveLine(this.sourceLines[this.sourceOffset%Math.max(1,this.sourceLines.length)]?.text||'');
     this.sourceOffset=offset;
     const feed=this.root.querySelector('.source-feed');feed.replaceChildren();
     for(let i=0;i<7;i++){
-      const line=this.sourceLines[(offset+i)%Math.max(1,this.sourceLines.length)];if(!line)continue;
-      const row=document.createElement('div');row.className='source-row'+(i===3?' reading':'');
-      const num=document.createElement('span');num.textContent=String(line.line).padStart(2,'0');
+      const log=i%3===2&&this.logs.length?this.logs[(Math.floor(offset/3)+Math.floor(i/3))%this.logs.length]:null;
+      const line=log?{text:log.text,line:'›'}:this.sourceLines[(offset+i)%Math.max(1,this.sourceLines.length)];if(!line)continue;
+      const row=document.createElement('div');row.className='source-row'+(log?' log-row':'')+(i===3?' reading':'');row.title=line.text;
+      const num=document.createElement('span');num.textContent=log?'›':String(line.line).padStart(2,'0');
       const text=document.createElement('span');text.textContent=line.text;row.append(num,text);feed.append(row);
     }
     feed.classList.remove('advance');if(this.running&&!this.reducedMotion){void feed.offsetWidth;feed.classList.add('advance');}

@@ -59,7 +59,7 @@ test('file content changes per-rule cadence and source text fragments at the top
 
 test('matrix density remains full and never exceeds five by five',()=>{const groups=ruleGroups();assert.deepEqual(groups.map(g=>[g.rows,g.cols]),[[4,4],[4,5],[4,5],[5,5]]);for(const group of groups){assert.ok(group.rows<=5&&group.cols<=5);assert.ok(group.rows*group.cols>=16);} });
 
-test('one through eight matrices share enabled rules without exceeding 5x5',()=>{for(let count=1;count<=8;count++){const groups=matrixGroups(undefined,count);assert.equal(groups.length,count);assert.ok(groups.every(g=>g.rows<=5&&g.cols<=5));assert.deepEqual([...new Set(groups.flatMap(g=>g.ids))].sort(),ruleGroups().flatMap(g=>g.ids).sort());const {visual:v}=fixture(groups);v.setState({running:true,status:'running'});for(let t=0;t<1600;t+=16)v.frame(t);assert.ok(v.serial.every(n=>n>0));v.destroy();}});
+test('one through nine matrices share enabled rules without exceeding 5x5',()=>{for(let count=1;count<=9;count++){const groups=matrixGroups(undefined,count);assert.equal(groups.length,count);assert.ok(groups.every(g=>g.rows<=5&&g.cols<=5));assert.deepEqual([...new Set(groups.flatMap(g=>g.ids))].sort(),ruleGroups().flatMap(g=>g.ids).sort());const {visual:v}=fixture(groups);v.setState({running:true,status:'running'});for(let t=0;t<1600;t+=16)v.frame(t);assert.ok(v.serial.every(n=>n>0));v.destroy();}});
 
 test('each bar and its landing destination use its own completion total',()=>{
   const {visual:v}=fixture();v.setChecks([0,0,0,0],[7,14,14,21]);v.setState({running:true,status:'running'});
@@ -70,3 +70,5 @@ test('each bar and its landing destination use its own completion total',()=>{
   assert.deepEqual(v.fills.map(fill=>fill.style.width),['100%','100%','50%','100%']);
   v.setChecks([7,14,14,21],[7,14,14,21]);assert.ok(v.fills.every(fill=>fill.style.width==='100%'));v.destroy();
 });
+
+test('execution logs share the text stream and remain inert plain text',()=>{const {visual:v,single}=fixture();v.setSource({id:'doc',text:'line one\nline two'});v.setLogs([{time:'00:01',level:'read',text:'<img src=x onerror=bad()> printed'}]);const rows=single['.source-feed'].children;assert.equal(rows.length,7);assert.ok(rows[2].className.includes('log-row'));assert.equal(rows[2].children[1].textContent,'00:01 read <img src=x onerror=bad()> printed');v.destroy();});

@@ -6,7 +6,7 @@ import {WorkflowVisual} from './modules/workflow-visual.js';
 const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
-let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0;
+let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false;
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
 const currentMatrices=()=>matrixGroups(currentRules(),job&&view==='review'?job.matrixCount:selectedProject().matrixCount);
@@ -35,7 +35,7 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():reviewHTML();
   $('viewRoot').scrollTop=0;setFooter();
-  if(view==='review'){visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
+  if(view==='review'){bindQueueDrag();visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
 }
 function homeHTML(){
   const realHistory=workspace.history.filter(h=>!h.example);
@@ -72,7 +72,7 @@ function projectHTML(){
   const p=selectedProject(),docs=p.documents.filter(d=>bomFilter==='all'||d.status!=='reviewed');
   return `<div class="view project-view">
     <div class="project-heading"><button class="project-switch" data-action="project-prev" aria-label="上一个项目"><span class="triangle left"></span></button><h1 title="${esc(p.name)}">${esc(p.name)}</h1><button class="project-switch" data-action="project-next" aria-label="下一个项目"><span class="triangle right"></span></button></div>
-    <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd>${esc(p.region)}</dd></div><div><dt>语种</dt><dd>${esc(p.language)}</dd></div></dl>
+    <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.region)} <span>⌄</span></button></dd></div><div><dt>语种</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.language)} <span>⌄</span></button></dd></div></dl>
     <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
     <section><div class="section-head"><h2>BOM</h2><button class="section-link" data-action="add-bom">＋ 添加</button><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
       <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code==='LOCAL'?'待编码':d.code||'待编码')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
@@ -90,15 +90,14 @@ function reviewHTML(){
     <div class="review-topline"><button class="row" data-project-open="${esc(p.id)}">${icon('c-icon-home')}<span>${esc(p.code)}</span></button><span class="faint">/</span><span>文案审核</span><span class="status-pill" id="runBadge" data-status="idle"><i class="dot"></i><span>READY</span></span></div>
     <div class="review-hero"><div><div class="eyebrow">已检查</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过规则</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
     <section class="workflow" id="workflow"><div class="flow-heading"><button class="rule-config-link" data-action="rules">审核规范 <span>${currentRules().length}</span> <span aria-hidden="true">⚙</span></button><span class="source-state">READY</span></div>
-      <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">copy.txt</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>文案输入</span><b>▍</b></div></div>
+      <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">copy.txt</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>文案 / 执行日志</span><b>▍</b></div></div>
       <div class="agent-groups" data-group-count="${matrices.length}">${matrices.map(g=>`<div class="agent-group"><div class="agent-grid" style="--cols:${g.cols};--rows:${g.rows};--node:${g.color}">${Array.from({length:g.rows},(_,row)=>Array.from({length:g.cols},(_,col)=>`<i class="agent-cell" data-group="${g.index}" data-row="${row}" data-col="${col}" title="${esc(RULES.find(r=>r.id===g.ids[row%g.ids.length]).name)} · ${['读取','定位','检查','复核','汇总'].slice(5-g.cols)[col]}"></i>`).join('')).join('')}</div><span class="agent-label">${g.short} <span>${g.ids.length}</span></span></div>`).join('')}</div>
       </div><div class="flow-transfer" aria-hidden="true"></div>
       <div class="rule-bars">${groups.map((g,i)=>`<div class="rule-bar" ${g.ids.length?'':'hidden'}><span>${g.name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${g.color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
       <canvas class="flow-canvas" aria-hidden="true"></canvas>
 
     </section>
-    <section class="execution"><div class="section-head"><h2>执行日志</h2><span class="meta" id="consoleState">local · ready</span></div><div class="console" id="console" aria-label="规则执行日志"></div></section>
-    <section class="queue-section"><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
+    <section class="queue-section ${queueExpanded?'expanded':''}" id="queuePanel"><button class="queue-grip" id="queueGrip" aria-label="${queueExpanded?'收起待确认':'展开待确认'}" aria-expanded="${queueExpanded}" aria-controls="findings"><i></i><span>${queueExpanded?'下拉收起':'上拉展开'}</span></button><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
     <div class="review-controls"><div class="progress-meta"><span id="progressLabel">等待开始</span><span id="progressPercent">0%</span></div><div class="progress-track" role="progressbar" aria-label="审核进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
       <div class="review-buttons" id="reviewButtons"></div><div class="review-source" id="reviewSource">LOCAL RULE CHECK · 文案仅在本机处理</div>
     </div>
@@ -117,12 +116,11 @@ function updateReview(){
   const current=job?.documents[Math.min(done,total-1)];
   $('currentDocument').textContent=current?.filename||current?.name||p.documents[0]?.filename||'copy.txt';
   $('currentStep').textContent=job?`${Math.min(done+1,total)}/${total}`:`${total} 份`;
-  $('consoleState').textContent=job?.status==='running'?'local · executing':job?.status==='complete'?'local · exit 0':job?.status==='paused'?'local · paused':'local · ready';
-  const logs=job?.logs?.slice(-4)||[{time:'00:00',level:'ready',text:`${currentRules().length} 项规范已就绪`}];
-  $('console').innerHTML=logs.map(l=>`<div class="console-line"><span class="log-time">${l.time}</span><span class="log-level ${l.level==='warn'?'warning':l.level==='pass'?'mint':'blue'}">${esc(l.level)}</span><span class="log-text">${esc(l.text)}</span></div>`).join('')+(job?.status==='running'?'<span class="cursor"></span>':'');
+  visual?.setLogs(job?.logs||[{time:'00:00',level:'ready',text:`${currentRules().length} 项规范已就绪`}]);
   $('queueTotal').textContent=counts.issues>120?counts.issues+' · 显示前120项':counts.issues;
   const findings=counts.findings.filter(f=>queueFilter==='all'||f.severity===queueFilter);
-  $('findings').innerHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>未发现问题':job?.status==='running'?'正在检查…':'等待开始'}</div>`;
+  const findingHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>未发现问题':job?.status==='running'?'正在检查…':'等待开始'}</div>`;
+  if($('findings').innerHTML!==findingHTML){const scroll=$('findings').scrollTop;$('findings').innerHTML=findingHTML;$('findings').scrollTop=scroll;}
   const groups=ruleGroups(currentRules()).map(g=>g.ids);
   const totals=groups.map(g=>total*g.length),checked=groups.map(g=>(job?.results||[]).reduce((n,r)=>n+r.analysis.rules.filter(rule=>g.includes(rule.id)).length,0));
   visual?.setChecks(checked,totals);
@@ -195,7 +193,7 @@ function editMembers(){
 }
 function editRules(){
   const p=job&&view==='review'?jobProject():selectedProject(),ids=enabledRuleIds(p.enabledRules);
-  openDialog('审核规范',`<form id="rulesForm"><div class="matrix-control"><label for="matrixCount">并行方阵</label><input id="matrixCount" type="range" min="1" max="8" step="1" value="${matrixCount(p.matrixCount)}"><output id="matrixCountLabel" for="matrixCount">${matrixCount(p.matrixCount)} 组</output></div><p class="field-hint">方阵对应规范类别，密度随启用项变化。${activeJob()?'本轮使用开始时的配置，修改将在下次审核生效。':''}</p>${ruleGroups().map(g=>`<fieldset class="rule-fieldset"><legend>${g.name}</legend>${g.ids.map(id=>{const r=RULES.find(r=>r.id===id);return `<label class="rule-option"><input type="checkbox" name="rule" value="${id}" ${ids.includes(id)?'checked':''}><span>${r.name}<small>${r.description}</small></span></label>`;}).join('')}</fieldset>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存规范</button></div></form>`);
+  openDialog('审核规范',`<form id="rulesForm"><div class="matrix-control"><label for="matrixCount">并行方阵</label><input id="matrixCount" type="range" min="1" max="9" step="1" value="${matrixCount(p.matrixCount)}"><output id="matrixCountLabel" for="matrixCount">${matrixCount(p.matrixCount)} 组</output></div><p class="field-hint">方阵对应规范类别，密度随启用项变化。${activeJob()?'本轮使用开始时的配置，修改将在下次审核生效。':''}</p>${ruleGroups().map(g=>`<fieldset class="rule-fieldset"><legend>${g.name}</legend>${g.ids.map(id=>{const r=RULES.find(r=>r.id===id);return `<label class="rule-option"><input type="checkbox" name="rule" value="${id}" ${ids.includes(id)?'checked':''}><span>${r.name}<small>${r.description}</small></span></label>`;}).join('')}</fieldset>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存规范</button></div></form>`);
   $('matrixCount').oninput=e=>{$('matrixCountLabel').textContent=e.target.value+' 组';};
   $('rulesForm').onsubmit=e=>{e.preventDefault();const ids=[...$('rulesForm').querySelectorAll('input:checked')].map(input=>input.value);if(!ids.length){notify('请至少保留一项规范');return;}p.enabledRules=ids;p.matrixCount=matrixCount(Number($('matrixCount').value));persist();closeDialog();if(!activeJob()){job=null;render();}else notify('已保存，下次审核生效');};
 }
@@ -216,9 +214,24 @@ async function readFiles(files){
   if(added.length){workspace.selectedProject=p.id;persist();closeDialog();beginRun(p.id,added,false);}
   if(skipped.length)notify(`${skipped.length} 份文件未导入：请使用有效 UTF-8 文本，且不超过 2 MB。`);
 }
+function choiceSelect(id,label,value,options){
+  const choices=[...new Set([value,...options].filter(Boolean))];return `<select id="${id}" aria-label="${label}">${choices.map(v=>`<option value="${esc(v)}"${v===value?' selected':''}>${esc(v)}</option>`).join('')}</select>`;
+}
+function setQueueExpanded(expanded){
+  queueExpanded=expanded;const panel=$('queuePanel'),grip=$('queueGrip');if(!panel)return;
+  panel.classList.toggle('expanded',expanded);grip.setAttribute('aria-expanded',String(expanded));grip.setAttribute('aria-label',expanded?'收起待确认':'展开待确认');grip.querySelector('span').textContent=expanded?'下拉收起':'上拉展开';
+}
+function bindQueueDrag(){
+  const grip=$('queueGrip');let start=null,suppressClick=false;
+  grip.onpointerdown=e=>{start=e.clientY;suppressClick=false;grip.setPointerCapture(e.pointerId);};
+  grip.onpointerup=e=>{if(start===null)return;const delta=e.clientY-start;start=null;if(Math.abs(delta)>22){setQueueExpanded(delta<0);suppressClick=true;}};
+  grip.onpointercancel=()=>{start=null;};
+  grip.onclick=()=>{if(suppressClick){suppressClick=false;return;}setQueueExpanded(!queueExpanded);};
+  grip.onkeydown=e=>{if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setQueueExpanded(e.key==='ArrowUp');}};
+}
 function projectSettings(){
   const p=selectedProject();
-  openDialog('项目资料',`<form id="projectForm"><div class="field"><label for="projectName">项目名称</label><input id="projectName" maxlength="80" required></div><div class="field"><label for="projectRegion">上市区域 / 语种</label><div class="row"><input id="projectRegion" maxlength="50" aria-label="上市区域"><input id="projectLanguage" maxlength="50" aria-label="语种"></div></div><div class="field"><label for="projectPdm">PDM 地址</label><input id="projectPdm" type="url" placeholder="https://…" maxlength="2000"><small>仅保存项目网址，不读取 PDM 数据。</small></div><div class="dialog-actions"><button class="button primary" type="submit">保存项目</button></div></form>`);
+  openDialog('项目资料',`<form id="projectForm"><div class="field"><label for="projectName">项目名称</label><input id="projectName" maxlength="80" required></div><div class="field"><label for="projectRegion">上市区域 / 语种</label><div class="row">${choiceSelect('projectRegion','上市区域',p.region,['中国大陆','中国香港 / 澳门','中国台湾','欧洲','北美','日本','韩国','东南亚','中东','澳大利亚 / 新西兰','乌克兰','全球'])}${choiceSelect('projectLanguage','语种',p.language,['简体中文','繁体中文','EN','DE','FR','ES','IT','PT','JA','KO','AR','UK','EN / 中文','EN / DE / FR','多语种'])}</div></div><div class="field"><label for="projectPdm">PDM 地址</label><input id="projectPdm" type="url" placeholder="https://…" maxlength="2000"><small>仅保存项目网址，不读取 PDM 数据。</small></div><div class="dialog-actions"><button class="button primary" type="submit">保存项目</button></div></form>`);
   $('projectName').value=p.name;$('projectRegion').value=p.region;$('projectLanguage').value=p.language;$('projectPdm').value=p.pdmUrl||'';
   $('projectForm').onsubmit=e=>{e.preventDefault();const url=$('projectPdm').value.trim();if(url&&!/^https:\/\//i.test(url)){notify('PDM 地址需要以 https:// 开头。');return;}p.name=$('projectName').value.trim();p.region=$('projectRegion').value.trim();p.language=$('projectLanguage').value.trim();p.pdmUrl=url;persist();closeDialog();render();};
 }
@@ -282,6 +295,7 @@ $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('d
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
 $('workspaceInfo').onclick=()=>openDialog('工作区数据',`<div class="dialog-copy"><p>初始项目、成员、SKU 与历史数字用于展示界面。导入和编辑后的文案会保存在本机，审核结果来自实际运行的 ${RULES.length} 项本地规则。</p><p>窗口收起后，当前审核会继续。退出应用会结束正在运行的检查；已保存的项目与历史统计会保留。</p></div><div class="dialog-actions">${button('添加真实文案','import','primary')}</div>`);
 if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
+document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='review'&&queueExpanded&&e.key==='Escape'){setQueueExpanded(false);e.stopPropagation();}
+if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
 reducedSystem.addEventListener('change',()=>{if(view==='review')updateReview();});
 render();
