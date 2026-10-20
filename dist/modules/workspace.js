@@ -1,3 +1,4 @@
+import {enabledRuleIds,sampleMembers,matrixCount} from './review-model.js';
 import { SAMPLE_DOCUMENTS } from './audit-engine.js';
 
 export const STORAGE_KEY = 'review-desk-workspace-v1';
@@ -14,7 +15,7 @@ export function createWorkspace() {
     const sample = SAMPLE_DOCUMENTS.find(d=>d.projectName===p.name) || SAMPLE_DOCUMENTS[2];
     return {
       ...p, example:true, pdmUrl:'',createdAt,
-      members:[{name:'Gracy',initials:'G',role:'文案 / 负责人',color:'#f3ce68'},{name:'产品',initials:'P',role:'参数核验',color:'#a48af0'},{name:'区域',initials:'L',role:'多语言校对',color:'#6adeb1'}],
+      members:sampleMembers(),enabledRules:enabledRuleIds(),
       skus:[{name:p.code+'-CN',region:'中国',language:'简体中文',materials:p.count},{name:p.code+'-EU',region:'欧洲',language:'EN / DE',materials:p.count+3},{name:p.code+'-UA',region:'乌克兰',language:'UK',materials:p.count}],
       documents:Array.from({length:p.count},(_,n)=>({id:`${p.id}-doc-${n}`,name:`${p.code}-${i===0?'国内版-':''}${names[n]}`,code:codes[n],text:sample.text,example:true,status:n>3?'reviewed':'pending',filename:`${p.code}-${names[n]}.txt`,createdAt})),
     };
@@ -47,9 +48,9 @@ export function loadWorkspace(storage=localStorage) {
         documentIds.add(d.id);
         return [{...d,name:string(d.name,string(d.filename,'未命名文案')),filename:string(d.filename,string(d.name,'文案')+'.txt'),code:string(d.code,'LOCAL'),example:d.example===true,status:d.status==='reviewed'?'reviewed':'pending',lastIssueCount:count(d.lastIssueCount),createdAt:timestamp(d.createdAt,projectCreatedAt)}];
       });
-      return [{...p,documents,code:string(p.code,p.name),region:string(p.region,'待填写'),language:string(p.language,'待填写'),phase:['T0','DVT','PVT','MP'].includes(p.phase)?p.phase:'T0',color:color(p.color),pdmUrl:string(p.pdmUrl),start:string(p.start),due:string(p.due),example:p.example===true,createdAt:projectCreatedAt,
+      return [{...p,documents,enabledRules:enabledRuleIds(p.enabledRules),matrixCount:matrixCount(p.matrixCount),code:string(p.code,p.name),region:string(p.region,'待填写'),language:string(p.language,'待填写'),phase:['T0','DVT','PVT','MP'].includes(p.phase)?p.phase:'T0',color:color(p.color),pdmUrl:string(p.pdmUrl),start:string(p.start),due:string(p.due),example:p.example===true,createdAt:projectCreatedAt,
         skus:(Array.isArray(p.skus)?p.skus:[]).filter(record).map(s=>({...s,name:string(s.name),region:string(s.region),language:string(s.language),materials:count(s.materials)})),
-        members:(Array.isArray(p.members)?p.members:[]).filter(record).map(m=>({...m,name:string(m.name),initials:string(m.initials,'?'),role:string(m.role),color:color(m.color)})),
+        members:(p.example===true&&p.members?.length===3&&p.members[0]?.role==='文案 / 负责人'?sampleMembers():(Array.isArray(p.members)?p.members:[])).filter(record).map(m=>({...m,name:string(m.name),initials:string(m.initials,'?'),role:string(m.role),color:color(m.color)})),
       }];
     });
     if(!projects.length)return createWorkspace();

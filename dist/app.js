@@ -1,3 +1,4 @@
+import {BLUE_PALETTE,enabledRuleIds,ruleGroups,matrixGroups,matrixCount,TEAM_ROLES} from './modules/review-model.js';
 import {RULES,analyzeDocument} from './modules/audit-engine.js';
 import {loadWorkspace,saveWorkspace,escapeHTML as esc,newId,formatDate,timelinePosition} from './modules/workspace.js';
 import {WorkflowVisual} from './modules/workflow-visual.js';
@@ -7,7 +8,9 @@ if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
 let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0;
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
-const colors=['#f3ce68','#a48af0','#a48af0','#6adeb1'];
+const colors=BLUE_PALETTE;
+const currentMatrices=()=>matrixGroups(currentRules(),job&&view==='review'?job.matrixCount:selectedProject().matrixCount);
+const currentRules=()=>job&&view==='review'?job.enabledRules:enabledRuleIds(selectedProject().enabledRules);
 const selectedProject=()=>workspace.projects.find(p=>p.id===workspace.selectedProject)||workspace.projects[0];
 const jobProject=()=>workspace.projects.find(p=>p.id===job?.projectId)||selectedProject();
 const activeJob=()=>job&&['running','paused'].includes(job.status);
@@ -32,7 +35,7 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():reviewHTML();
   $('viewRoot').scrollTop=0;setFooter();
-  if(view==='review'){visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion()});updateReview();}
+  if(view==='review'){visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
 }
 function homeHTML(){
   const realHistory=workspace.history.filter(h=>!h.example);
@@ -44,7 +47,7 @@ function homeHTML(){
   const avg=hasReal?(realHistory.reduce((n,h)=>n+h.elapsed,0)/Math.max(1,totalDocs)/1000).toFixed(1)+'s':'1.6s';
   const metrics=[['平均耗时',avg],['通过率',hasReal?Math.round(passed/Math.max(1,totalDocs)*100)+'%':'98.9%'],['已校文档',hasReal?String(totalDocs):'93'],['审核项目',hasReal?String(new Set(realHistory.map(h=>h.projectId)).size):'24']];
   return `<div class="view home-view">
-    <div class="home-intro">项目总览 <span>OVERVIEW</span></div>
+    <div class="home-intro">项目总览 </div>
     <dl class="metrics">${metrics.map(([k,v])=>`<div class="metric"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <div class="rule"></div>
     <section aria-label="审核活动"><div class="section-head"><h2>活动</h2><span class="meta">${hasReal?'本地累计':'示例累计'} ${hasReal?totalDocs:93} 文件 ${icon('a-icon-trends')}</span></div>
@@ -55,7 +58,7 @@ function homeHTML(){
       <div class="project-list past-projects">${workspace.projects.map(p=>`<div class="project-group ${expanded===p.id?'expanded':''}"><button class="project-summary" data-expand="${esc(p.id)}" aria-expanded="${expanded===p.id}">${icon('a-icon-claude')}<span>${esc(p.code)}</span><span class="project-stage">${esc(p.phase)}_${formatDate(p.due)}</span><span class="chevron">${expanded===p.id?'−':'＋'}</span></button>
         <div class="project-docs">${p.documents.slice(0,7).map(d=>`<button class="mini-doc" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="doc-name">${esc(d.name)}</span><span class="doc-code">${esc(d.code||'LOCAL')}</span></button>`).join('')}<button class="mini-doc" data-project-open="${esc(p.id)}"><span class="mint">查看项目详情</span><span>→</span></button></div></div>`).join('')}</div>
     </section>
-    <section class="planning"><div class="section-head"><h2>并行项目规划</h2><div class="week-nav"><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 DAYS</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} PROJECTS</span></div></section>
+    <section class="planning"><div class="section-head"><h2>并行项目规划</h2><div class="week-nav"><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 天</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} 项目</span></div></section>
     <div class="home-actions">${button('＋ 导入文案','import','grow')}${button('开始审核 →','start-project','primary grow')}</div>
   </div>`;
 }
@@ -63,35 +66,36 @@ function timelineHTML(){
   const base=new Date('2026-10-20T12:00:00');base.setDate(base.getDate()+timelineOffset*7);const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const rangeStart=iso(base),labels=Array.from({length:5},(_,i)=>{const d=new Date(base);d.setDate(d.getDate()+i*6);return `${d.getMonth()+1}/${d.getDate()}`;});
   const now=new Date(),today=(new Date(now.getFullYear(),now.getMonth(),now.getDate(),12)-base)/86400000/24;
-  return `<div class="gantt"><div class="gantt-axis">${labels.map(x=>`<span>${x}</span>`).join('')}</div>${workspace.projects.map(p=>{const pos=timelinePosition(p.start,p.due,rangeStart);return `<div class="gantt-row"><button class="gantt-label" data-project-open="${esc(p.id)}" title="${esc(p.name)}">${esc(p.code)}</button><div class="gantt-track">${pos?`<button class="gantt-bar" data-plan="${esc(p.id)}" style="--start:${pos.start}%;--length:${pos.length}%;--bar:${p.color}" title="${esc(p.code)} · ${esc(p.start)} 至 ${esc(p.due)}"><span>${esc(p.phase)}</span></button>`:''}</div></div>`;}).join('')}${today>=0&&today<=1?`<div class="gantt-today" style="--today:${today}"></div>`:''}</div>`;
+  return `<div class="gantt"><div class="gantt-axis">${labels.map(x=>`<span>${x}</span>`).join('')}</div>${workspace.projects.map((p,i)=>{const pos=timelinePosition(p.start,p.due,rangeStart);return `<div class="gantt-row"><button class="gantt-label" data-project-open="${esc(p.id)}" title="${esc(p.name)}">${esc(p.code)}</button><div class="gantt-track">${pos?`<button class="gantt-bar" data-plan="${esc(p.id)}" style="--start:${pos.start}%;--length:${pos.length}%;--bar:${colors[i%4]}" title="${esc(p.code)} · ${esc(p.start)} 至 ${esc(p.due)}"><span>${esc(p.phase)}</span></button>`:''}</div></div>`;}).join('')}${today>=0&&today<=1?`<div class="gantt-today" style="--today:${today}"></div>`:''}</div>`;
 }
 function projectHTML(){
   const p=selectedProject(),docs=p.documents.filter(d=>bomFilter==='all'||d.status!=='reviewed');
   return `<div class="view project-view">
     <div class="project-heading"><button class="project-switch" data-action="project-prev" aria-label="上一个项目"><span class="triangle left"></span></button><h1 title="${esc(p.name)}">${esc(p.name)}</h1><button class="project-switch" data-action="project-next" aria-label="下一个项目"><span class="triangle right"></span></button></div>
-    <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd>${esc(p.region)}</dd></div><div><dt>语种</dt><dd>${esc(p.language)}</dd></div><div><dt>参数</dt><dd>${esc(p.phase)} · ${p.example?'示例':'本地'}</dd></div><div><dt>物料类型</dt><dd>标贴 / 包装 / 文档</dd></div></dl>
+    <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd>${esc(p.region)}</dd></div><div><dt>语种</dt><dd>${esc(p.language)}</dd></div></dl>
     <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
-    <section><div class="section-head"><h2>BOM</h2><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
-      <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code||'LOCAL')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
-      <div class="row between" style="margin-top:6px"><span class="tiny faint">${p.example?'示例项目':'本地项目'}</span><button class="section-link" data-action="import">＋ 添加文案</button></div>
+    <section><div class="section-head"><h2>BOM</h2><button class="section-link" data-action="add-bom">＋ 添加</button><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
+      <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code==='LOCAL'?'待编码':d.code||'待编码')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
+      
     </section><div class="rule"></div>
-    <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} VARIANTS</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
-    <div class="rule"></div><section><div class="section-head"><h2>项目成员</h2><span class="meta">${p.example?'示例团队':'项目协作'}</span></div><div class="members">${(p.members||[]).map((m,i)=>`<div class="member"><span class="avatar" style="--avatar:${m.color}">${esc(m.initials)}</span><span class="member-name">${esc(m.name)}</span><span class="member-role">${esc(m.role)}</span><span class="member-state ${i===0?'mint':'muted'}">${i===0?'负责人':'待确认'}</span></div>`).join('')}</div></section>
+    <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} 版本</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
+    <div class="rule"></div><section><div class="section-head"><h2>项目成员 <span class="meta inline">${(p.members||[]).length}</span></h2><button class="section-link" data-action="members">管理</button></div><div class="members role-members">${[...new Set([...TEAM_ROLES,...(p.members||[]).map(m=>m.role)])].map(role=>{const members=(p.members||[]).filter(m=>m.role===role);return `<div class="team-role"><span class="role-name">${esc(role)}</span><div class="role-people">${members.length?members.map(m=>`<span class="person-chip" title="${esc(m.name)}">${esc(m.name)}</span>`).join(''):'<span class="unassigned">—</span>'}</div></div>`;}).join('')}</div></section>
     <div class="delivery-line"><span>下一次交付</span><strong>${esc(p.phase)} · ${esc(p.due)}</strong></div>
     <div class="project-actions">${button('项目资料','project-settings')}${button('审核本项目 →','start-project','primary')}</div>
   </div>`;
 }
 function reviewHTML(){
-  const p=job?jobProject():selectedProject();
+  const p=job?jobProject():selectedProject(),groups=ruleGroups(currentRules()),matrices=currentMatrices();
   return `<div class="view review-view">
     <div class="review-topline"><button class="row" data-project-open="${esc(p.id)}">${icon('c-icon-home')}<span>${esc(p.code)}</span></button><span class="faint">/</span><span>文案审核</span><span class="status-pill" id="runBadge" data-status="idle"><i class="dot"></i><span>READY</span></span></div>
     <div class="review-hero"><div><div class="eyebrow">已检查</div><div class="review-number"><b id="doneCount">00</b><span id="totalCount">/ ${String(p.documents.length).padStart(2,'0')}</span></div></div><div class="review-stats"><div><strong class="mint" id="passCount">0</strong><small>通过规则</small></div><div><strong class="warning" id="issueCount">0</strong><small>待确认</small></div></div></div>
-    <section class="workflow" id="workflow"><div class="flow-heading"><strong>审核工作流</strong><span class="source-state">READY</span></div>
+    <section class="workflow" id="workflow"><div class="flow-heading"><button class="rule-config-link" data-action="rules">审核规范 <span>${currentRules().length}</span> <span aria-hidden="true">⚙</span></button><span class="source-state">READY</span></div>
       <div class="flow-workspace"><div class="source-panel"><div class="source-heading"><span class="source-name" id="currentDocument">copy.txt</span><span id="currentStep">0/0</span></div><div class="source-viewport"><div class="source-feed"></div><div class="source-scan"></div></div><div class="source-tail"><i></i><span>文案输入</span><b>▍</b></div></div>
-      <div class="agent-groups">${['术语','格式','参数','文字'].map((label,g)=>`<div class="agent-group"><div class="agent-grid">${Array.from({length:16},(_,i)=>`<i class="agent-cell" style="--node:${colors[i%4]}" data-agent="${g*16+i}"></i>`).join('')}</div><span class="agent-label">${label}</span></div>`).join('')}</div>
+      <div class="agent-groups" data-group-count="${matrices.length}">${matrices.map(g=>`<div class="agent-group"><div class="agent-grid" style="--cols:${g.cols};--rows:${g.rows};--node:${g.color}">${Array.from({length:g.rows},(_,row)=>Array.from({length:g.cols},(_,col)=>`<i class="agent-cell" data-group="${g.index}" data-row="${row}" data-col="${col}" title="${esc(RULES.find(r=>r.id===g.ids[row%g.ids.length]).name)} · ${['读取','定位','检查','复核','汇总'].slice(5-g.cols)[col]}"></i>`).join('')).join('')}</div><span class="agent-label">${g.short} <span>${g.ids.length}</span></span></div>`).join('')}</div>
       </div><div class="flow-transfer" aria-hidden="true"></div>
-      <div class="rule-bars">${[['术语一致','#73bdf5'],['格式规范','#f3ce68'],['参数校验','#a48af0'],['文字检查','#6adeb1']].map(([name,color],i)=>`<div class="rule-bar"><span>${name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
-      <canvas class="flow-canvas" aria-hidden="true"></canvas><div class="legend"><span style="color:var(--yellow)"><i></i> 处理中</span><span style="color:var(--purple)"><i></i> 复核</span><span style="color:var(--green)"><i></i> 已归档</span><span class="muted">${RULES.length} 项规则</span></div>
+      <div class="rule-bars">${groups.map((g,i)=>`<div class="rule-bar" ${g.ids.length?'':'hidden'}><span>${g.name}</span><div class="bar-track"><div class="bar-fill" id="ruleBar${i}" style="--bar:${g.color};width:0%"></div></div><span class="rule-count" id="ruleCount${i}">0/0</span></div>`).join('')}</div>
+      <canvas class="flow-canvas" aria-hidden="true"></canvas>
+
     </section>
     <section class="execution"><div class="section-head"><h2>执行日志</h2><span class="meta" id="consoleState">local · ready</span></div><div class="console" id="console" aria-label="规则执行日志"></div></section>
     <section class="queue-section"><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
@@ -104,7 +108,7 @@ function reviewCounts(){const results=job?.results||[];return{issues:results.red
 function updateReview(){
   const counts=reviewCounts();setFooter();
   if(view!=='review')return;
-  const p=job?jobProject():selectedProject(),total=job?.documents.length??p.documents.length,done=job?.processed||0;
+  const p=job?jobProject():selectedProject(),total=job?.documents.length??p.documents.filter(d=>d.text.trim()).length,done=job?.processed||0;
   const fraction=job?.status==='complete'?1:job?Math.min(1,job.tick/(Math.max(1,total)*4)):0;
   const badge={idle:'READY',running:'LIVE',paused:'PAUSED',complete:'COMPLETE',cancelled:'STOPPED'}[job?.status||'idle'];
   $('runBadge').dataset.status=job?.status||'idle';$('runBadge').querySelector('span').textContent=badge;
@@ -114,19 +118,19 @@ function updateReview(){
   $('currentDocument').textContent=current?.filename||current?.name||p.documents[0]?.filename||'copy.txt';
   $('currentStep').textContent=job?`${Math.min(done+1,total)}/${total}`:`${total} 份`;
   $('consoleState').textContent=job?.status==='running'?'local · executing':job?.status==='complete'?'local · exit 0':job?.status==='paused'?'local · paused':'local · ready';
-  const logs=job?.logs?.slice(-4)||[{time:'00:00',level:'ready',text:`${RULES.length} 项规则已加载，等待文案输入。`}];
+  const logs=job?.logs?.slice(-4)||[{time:'00:00',level:'ready',text:`${currentRules().length} 项规范已就绪`}];
   $('console').innerHTML=logs.map(l=>`<div class="console-line"><span class="log-time">${l.time}</span><span class="log-level ${l.level==='warn'?'warning':l.level==='pass'?'mint':'blue'}">${esc(l.level)}</span><span class="log-text">${esc(l.text)}</span></div>`).join('')+(job?.status==='running'?'<span class="cursor"></span>':'');
   $('queueTotal').textContent=counts.issues>120?counts.issues+' · 显示前120项':counts.issues;
   const findings=counts.findings.filter(f=>queueFilter==='all'||f.severity===queueFilter);
   $('findings').innerHTML=findings.length?findings.slice(0,120).map((f,i)=>`<button class="finding ${f.severity}" data-finding="${esc(f.id)}" data-finding-document="${esc(f.documentId)}"><i class="finding-marker"></i><span class="finding-content"><span class="finding-title">${esc(f.message)}</span><span class="finding-meta" style="display:block">${esc(f.filename)} · ${esc(f.ruleName)}</span></span><span class="finding-line">L${f.line}</span></button>`).join(''):`<div class="empty-state">${job?.status==='complete'?'<span class="checkmark">✓</span>未发现问题':job?.status==='running'?'正在检查…':'等待开始'}</div>`;
-  const groups=[['project-name'],['extra-spaces','punctuation'],['placeholders','unit-spacing'],['repeated-words','absolute-claims','empty-document']];
+  const groups=ruleGroups(currentRules()).map(g=>g.ids);
   const totals=groups.map(g=>total*g.length),checked=groups.map(g=>(job?.results||[]).reduce((n,r)=>n+r.analysis.rules.filter(rule=>g.includes(rule.id)).length,0));
   visual?.setChecks(checked,totals);
   visual?.setSource(current||p.documents[0],job?.status||'idle');
   const elapsed=job?elapsedMs():0,secs=Math.floor(elapsed/1000),clock=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
   $('progressLabel').textContent=job?.status==='complete'?`已完成 · ${clock}`:job?.status==='paused'?`已暂停 · ${clock}`:job?.status==='cancelled'?'已停止，已检查结果可导出':job?`${['解析文案','运行规则','归集问题','保存结果'][job.tick%4]} · ${clock}`:'等待开始';
   $('progressPercent').textContent=Math.floor(fraction*100)+'%';$('progressFill').style.width=fraction*100+'%';$('progressTrack').setAttribute('aria-valuenow',String(Math.floor(fraction*100)));
-  const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('导出','export')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
+  const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('导出','export')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.filter(d=>d.text.trim()).every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
   $('reviewSource').textContent=job?.example?'示例演练':'本地预检';
   visual?.setState({running:job?.status==='running',progress:fraction,status:job?.status||'idle',reducedMotion:reducedMotion()});
 }
@@ -137,9 +141,13 @@ function beginRun(projectId,documents,forceExample=null){
   if(!documents.length){notify('先添加一份文案，再开始审核。');return;}
   if(activeJob()){notify('当前审核尚未结束，可先暂停或停止。');setView('review');return;}
   clearInterval(jobTimer);
+  documents=documents.filter(d=>d.text.trim());
+  if(!documents.length){notify('请先为 BOM 物料添加文案。');return;}
+  const enabledRules=enabledRuleIds(workspace.projects.find(p=>p.id===projectId)?.enabledRules);
+  if(!enabledRules.length){notify('请至少启用一项审核规范。');return;}
   const example=forceExample??documents.every(d=>d.example);
-  job={projectId,projectName:workspace.projects.find(p=>p.id===projectId)?.name||'',documents:documents.map(d=>({...d})),example,status:'running',processed:0,tick:0,results:[],logs:[],elapsed:0,resumedAt:performance.now(),startedAt:new Date().toISOString()};
-  log('init',`${documents.length} 份文案 · ${RULES.length} 项本地规则`);log('info',example?'示例演练开始，方块按检查阶段推进。':'文案已载入本机内存，不上传服务器。');
+  job={projectId,enabledRules,matrixCount:matrixCount(workspace.projects.find(p=>p.id===projectId)?.matrixCount),projectName:workspace.projects.find(p=>p.id===projectId)?.name||'',documents:documents.map(d=>({...d})),example,status:'running',processed:0,tick:0,results:[],logs:[],elapsed:0,resumedAt:performance.now(),startedAt:new Date().toISOString()};
+  log('init',`${documents.length} 份文案 · ${enabledRules.length} 项规范`);log('info',example?'示例演练开始，方块按检查阶段推进。':'文案已载入本机内存，不上传服务器。');
   setView('review');notifyDesktop();scheduleRun();
 }
 function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?800:65);}
@@ -148,7 +156,7 @@ function tick(){
   const d=job.documents[job.processed],phase=job.tick%4;
   if(!d){finishRun();return;}
   if(phase===0){log('read',`${d.filename||d.name} · ${d.text.length} chars`);}
-  if(phase===1){job.pending=analyzeDocument(d.text,{filename:d.filename||d.name,projectName:job.projectName});log('exec',`rules.check() · ${job.pending.summary.totalRules} rules evaluated`);}
+  if(phase===1){job.pending=analyzeDocument(d.text,{filename:d.filename||d.name,projectName:job.projectName,enabledRules:job.enabledRules});log('exec',`rules.check() · ${job.pending.summary.totalRules} rules evaluated`);}
   if(phase===2){log(job.pending.findings.length?'warn':'pass',`${d.name} · ${job.pending.findings.length} 处待确认`);}
   if(phase===3){job.results.push({document:d,analysis:job.pending});job.processed++;job.pending=null;log('save',`report.append() · ${job.processed}/${job.documents.length} documents`);}
   job.tick++;updateReview();
@@ -168,12 +176,28 @@ function openDialog(title,html){$('dialogTitle').textContent=title;$('dialogBody
 function closeDialog(){$('dialog').close();}
 function showDocument(id,projectId){
   const p=workspace.projects.find(p=>p.id===projectId),d=p?.documents.find(d=>d.id===id);if(!d)return;
-  openDialog(d.name,`<p class="small muted" style="margin-bottom:10px">${esc(d.code||'LOCAL')} · ${d.example?'示例文案':'本地文案'}</p><div class="document-preview" id="documentText"></div><div class="dialog-actions"><button class="button" data-edit-document="${esc(d.id)}" data-project="${esc(p.id)}">编辑文案</button><button class="button primary" data-review-document="${esc(d.id)}" data-project="${esc(p.id)}">审核此文案 →</button></div>`);$('documentText').textContent=d.text;
+  openDialog(d.name,`<p class="small muted" style="margin-bottom:10px">${esc(d.code||'LOCAL')} · ${d.example?'示例文案':'本地文案'}</p><div class="document-preview" id="documentText"></div><div class="dialog-actions"><button class="button" data-edit-document="${esc(d.id)}" data-project="${esc(p.id)}">编辑文案</button><button class="button primary" ${d.text.trim()?'':'disabled'} data-review-document="${esc(d.id)}" data-project="${esc(p.id)}">审核此文案 →</button></div>`);$('documentText').textContent=d.text||'尚未添加文案';
 }
 function editDocument(id,projectId){
   const p=workspace.projects.find(p=>p.id===projectId),d=p?.documents.find(d=>d.id===id);if(!d)return;
-  openDialog('编辑文案',`<form id="editDocumentForm"><div class="field"><label for="editDocName">文档名称</label><input id="editDocName" maxlength="100" required></div><div class="field"><label for="editDocText">文案正文</label><textarea id="editDocText" maxlength="200000" required></textarea><small>保存后作为本地文案，用真实规则检查。</small></div><div class="dialog-actions"><button class="button primary" type="submit">保存文案</button></div></form>`);$('editDocName').value=d.name;$('editDocText').value=d.text;
-  $('editDocumentForm').onsubmit=e=>{e.preventDefault();d.name=$('editDocName').value.trim();d.text=$('editDocText').value;d.example=false;d.status='pending';persist();closeDialog();render();notify('文案已保存到本机。');};
+  openDialog('编辑文案',`<form id="editDocumentForm"><div class="field"><label for="editDocName">文档名称</label><input id="editDocName" maxlength="100" required></div><div class="field"><label for="editDocCode">物料编码</label><input id="editDocCode" maxlength="60"></div><div class="field"><label for="editDocText">文案正文</label><textarea id="editDocText" maxlength="200000" required></textarea></div><div class="dialog-actions"><button class="button primary" type="submit">保存文案</button></div></form>`);$('editDocCode').value=d.code==='LOCAL'?'':d.code||'';$('editDocName').value=d.name;$('editDocText').value=d.text;
+  $('editDocumentForm').onsubmit=e=>{e.preventDefault();d.name=$('editDocName').value.trim();d.code=$('editDocCode').value.trim()||'LOCAL';d.text=$('editDocText').value;d.example=false;d.status='pending';persist();closeDialog();render();notify('文案已保存到本机。');};
+}
+function addBom(){
+  const p=selectedProject();
+  openDialog('添加 BOM',`<form id="bomForm"><div class="field"><label for="bomName">物料名称</label><input id="bomName" maxlength="100" placeholder="例如：国内版-包装标贴" required></div><div class="field"><label for="bomCode">物料编码</label><input id="bomCode" maxlength="60" placeholder="可稍后补充"></div><div class="field"><label for="bomText">文案（选填）</label><textarea id="bomText" maxlength="200000" placeholder="有文案后即可审核"></textarea></div><div class="dialog-actions"><button class="button primary" type="submit">添加物料</button></div></form>`);
+  $('bomForm').onsubmit=e=>{e.preventDefault();const name=$('bomName').value.trim();if(!name)return;const text=$('bomText').value;p.documents.push({id:newId('doc'),name,filename:name+'.txt',code:$('bomCode').value.trim()||'LOCAL',text,example:false,status:'pending',createdAt:new Date().toISOString()});bomFilter='all';persist();closeDialog();render();notify('BOM 已添加');};
+}
+function editMembers(){
+  const p=selectedProject(),roles=[...new Set([...TEAM_ROLES,...(p.members||[]).map(m=>m.role)])];
+  openDialog('项目成员',`<form id="membersForm"><p class="field-hint">同一角色可填写多人，用逗号分隔。</p>${roles.map((role,i)=>`<div class="member-field"><label for="team${i}">${esc(role)}</label><input id="team${i}" maxlength="500" value="${esc((p.members||[]).filter(m=>m.role===role).map(m=>m.name).join('，'))}" placeholder="姓名"></div>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存成员</button></div></form>`);
+  $('membersForm').onsubmit=e=>{e.preventDefault();p.members=roles.flatMap((role,i)=>[...new Set($('team'+i).value.split(/[,，、;；\n]+/).map(n=>n.trim()).filter(Boolean))].map(name=>({name,role,initials:name.slice(0,1),color:colors[i%4]})));persist();closeDialog();render();};
+}
+function editRules(){
+  const p=job&&view==='review'?jobProject():selectedProject(),ids=enabledRuleIds(p.enabledRules);
+  openDialog('审核规范',`<form id="rulesForm"><div class="matrix-control"><label for="matrixCount">并行方阵</label><input id="matrixCount" type="range" min="1" max="8" step="1" value="${matrixCount(p.matrixCount)}"><output id="matrixCountLabel" for="matrixCount">${matrixCount(p.matrixCount)} 组</output></div><p class="field-hint">方阵对应规范类别，密度随启用项变化。${activeJob()?'本轮使用开始时的配置，修改将在下次审核生效。':''}</p>${ruleGroups().map(g=>`<fieldset class="rule-fieldset"><legend>${g.name}</legend>${g.ids.map(id=>{const r=RULES.find(r=>r.id===id);return `<label class="rule-option"><input type="checkbox" name="rule" value="${id}" ${ids.includes(id)?'checked':''}><span>${r.name}<small>${r.description}</small></span></label>`;}).join('')}</fieldset>`).join('')}<div class="dialog-actions"><button class="button primary" type="submit">保存规范</button></div></form>`);
+  $('matrixCount').oninput=e=>{$('matrixCountLabel').textContent=e.target.value+' 组';};
+  $('rulesForm').onsubmit=e=>{e.preventDefault();const ids=[...$('rulesForm').querySelectorAll('input:checked')].map(input=>input.value);if(!ids.length){notify('请至少保留一项规范');return;}p.enabledRules=ids;p.matrixCount=matrixCount(Number($('matrixCount').value));persist();closeDialog();if(!activeJob()){job=null;render();}else notify('已保存，下次审核生效');};
 }
 function importDialog(){
   if(activeJob()){notify('请先完成或停止当前审核，再添加并审核新文案。');setView('review');return;}
@@ -200,7 +224,7 @@ function projectSettings(){
 }
 function newProjectDialog(){
   openDialog('新建项目',`<form id="newProjectForm"><div class="field"><label for="newName">项目名称</label><input id="newName" required maxlength="60" placeholder="例如：R601P 新产品"></div><div class="field"><label for="newCode">项目简称</label><input id="newCode" required maxlength="18" placeholder="R601P"></div><div class="field"><label for="newDue">计划交付日期</label><input type="date" id="newDue" required value="${new Date(Date.now()+21*86400000).toLocaleDateString('sv-SE')}"></div><div class="dialog-actions"><button class="button primary" type="submit">创建项目</button></div></form>`);
-  $('newProjectForm').onsubmit=e=>{e.preventDefault();const p={id:newId('project'),createdAt:new Date().toISOString(),name:$('newName').value.trim(),code:$('newCode').value.trim(),due:$('newDue').value,start:new Date().toLocaleDateString('sv-SE'),phase:'T0',region:'待填写',language:'待填写',color:'#b7ead4',documents:[],skus:[],members:[],example:false,pdmUrl:''};workspace.projects.push(p);workspace.selectedProject=p.id;persist();closeDialog();setView('project');};
+  $('newProjectForm').onsubmit=e=>{e.preventDefault();const p={id:newId('project'),createdAt:new Date().toISOString(),name:$('newName').value.trim(),code:$('newCode').value.trim(),due:$('newDue').value,start:new Date().toLocaleDateString('sv-SE'),phase:'T0',region:'待填写',language:'待填写',color:'#7ebeff',documents:[],skus:[],members:[],example:false,pdmUrl:''};workspace.projects.push(p);workspace.selectedProject=p.id;persist();closeDialog();setView('project');};
 }
 function editPlan(id){
   const p=workspace.projects.find(p=>p.id===id);if(!p)return;
@@ -218,7 +242,7 @@ function showFinding(id,documentId){
 }
 function exportReport(){
   if(!job?.results.length){notify('还没有可以导出的检查结果。');return;}
-  const report={application:'Review Desk',version:1,createdAt:new Date().toISOString(),project:job.projectName,example:job.example,status:job.status,summary:{documents:job.results.length,...reviewCounts(),findings:undefined},results:job.results.map(r=>({document:r.document.name,...r.analysis}))};
+  const report={application:'Review Desk',version:1,createdAt:new Date().toISOString(),project:job.projectName,enabledRules:job.enabledRules,example:job.example,status:job.status,summary:{documents:job.results.length,...reviewCounts(),findings:undefined},results:job.results.map(r=>({document:r.document.name,...r.analysis}))};
   const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`review-${jobProject().code.replace(/[^\w-]/g,'_')}-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('审核报告已导出。');
 }
 async function showSettings(){
@@ -229,7 +253,7 @@ async function showSettings(){
 }
 const actions={
   'import':importDialog,'pick-files':()=>{$('fileInput').value='';$('fileInput').click();},
-  'new-project':newProjectDialog,'project-settings':projectSettings,
+  'new-project':newProjectDialog,'project-settings':projectSettings,'add-bom':addBom,'members':editMembers,'rules':editRules,
   'start-project':()=>{const p=selectedProject();beginRun(p.id,p.documents);},
   'project-prev':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i-1+workspace.projects.length)%workspace.projects.length].id);},
   'project-next':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i+1)%workspace.projects.length].id);},

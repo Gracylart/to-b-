@@ -120,3 +120,13 @@ test('unit spacing handles Chinese adjacency and grouped numbers', () => {
   assert.match(matches[0].suggestion, /65 W/);
   assert.match(matches[1].suggestion, /3,000 mAh/);
 });
+
+test('enabled rules control executed checks, findings and totals',()=>{
+  const result=analyzeDocument('TODO 65W 完美解决所有问题',{enabledRules:['unit-spacing']});
+  assert.equal(result.summary.totalRules,1);
+  assert.deepEqual(result.rules.map(r=>r.id),['unit-spacing']);
+  assert.ok(result.findings.length>0);
+  assert.ok(result.findings.every(f=>f.ruleId==='unit-spacing'));
+  const none=analyzeDocument('TODO',{enabledRules:[]});
+  assert.equal(none.summary.totalRules,0);assert.deepEqual(none.findings,[]);
+});

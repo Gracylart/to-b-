@@ -71,15 +71,17 @@ const NUMBER_UNIT = /(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?:GB\/
 const ABSOLUTE_CLAIMS = /全球第一|行业第一|全网第一|销量第一|世界第一|绝对安全|绝无风险|零风险|百分之百(?:有效|安全|可靠)|100%\s*(?:有效|安全|可靠)|永久有效|完美解决(?:所有|一切)|最先进|顶级|唯一选择/g;
 
 /** Return escaped-free plain strings. Render with textContent, not innerHTML. */
-export function analyzeDocument(text, { filename = '', projectName = '' } = {}) {
+export function analyzeDocument(text, { filename = '', projectName = '', enabledRules = RULES.map(r=>r.id) } = {}) {
   const source = text == null ? '' : String(text);
   const canonicalName = String(projectName || '').trim();
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
+  const activeRules=RULES.filter(rule=>enabledRules.includes(rule.id));
   const findings = [];
   const occurrences = new Map();
   let inCodeFence = false;
 
   function add(ruleId, line, match, message, suggestion, severity = 'warning') {
+    if(!activeRules.some(rule=>rule.id===ruleId))return;
     const occurrenceKey = `${ruleId}-${line}`;
     const ordinal = (occurrences.get(occurrenceKey) || 0) + 1;
     occurrences.set(occurrenceKey, ordinal);
@@ -163,7 +165,7 @@ export function analyzeDocument(text, { filename = '', projectName = '' } = {}) 
 
   const order = new Map(RULES.map((rule, index) => [rule.id, index]));
   findings.sort((a, b) => a.line - b.line || order.get(a.ruleId) - order.get(b.ruleId));
-  const rules = RULES.map(rule => {
+  const rules = activeRules.map(rule => {
     const matches = findings.filter(finding => finding.ruleId === rule.id);
     return {
       id: rule.id,
@@ -183,7 +185,7 @@ export function analyzeDocument(text, { filename = '', projectName = '' } = {}) 
       errors: findings.filter(finding => finding.severity === 'error').length,
       warnings: findings.filter(finding => finding.severity === 'warning').length,
       passed: rules.filter(rule => rule.status === 'passed').length,
-      totalRules: RULES.length,
+      totalRules: activeRules.length,
     },
     metadata: { filename: String(filename || ''), projectName: canonicalName },
   };
