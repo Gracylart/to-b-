@@ -81,3 +81,20 @@ html.desktop .glass-shell{background:linear-gradient(154deg,#34445ae0,#202c3ddc)
 .agent-group{gap:5px}.source-tail{font-size:10px}.source-row{font-size:10px}.source-row>span:first-child{display:none}.source-heading .source-name{font-size:10px}
 .project-members{margin:0 0 10px}.project-members summary{display:flex;gap:6px;align-items:center;list-style:none;cursor:pointer;font-size:12px;min-height:24px}.project-members summary::-webkit-details-marker{display:none}.member-toggle{margin-left:auto;font-size:10px;color:var(--muted)}.member-toggle::after{content:'展开 ⌄'}.project-members[open] .member-toggle::after{content:'收起 ⌃'}.project-members .section-head{height:14px;margin:0}.project-members .members.role-members{margin-top:3px;max-height:118px}.project-view .bom-list{max-height:148px}.project-view{padding-bottom:12px}
 .plan-editor{padding:5px 0}.plan-edit-head,.plan-edit-row{display:grid;grid-template-columns:64px minmax(0,1fr) minmax(0,1fr);gap:6px;align-items:center}.plan-edit-head{font-size:10px;color:var(--faint);margin-bottom:5px}.plan-edit-row{min-height:27px;font-size:10px}.plan-edit-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plan-edit-row input{box-sizing:border-box;min-width:0;width:100%;font:10px var(--mono);color:var(--text);color-scheme:dark;background:#7ebeff0f;border:1px solid #a7c4e24d;border-radius:4px;padding:4px 2px}.week-nav button[data-action="plan-edit"]{width:auto;font-size:10px;color:var(--mint)}
+
+/* Shared blue glass surface for modal forms. */
+dialog{color-scheme:dark;width:min(337px,calc(100vw - 28px));padding:18px;border:1px solid #c7e2ff52;border-radius:18px;background:linear-gradient(145deg,#91b9e52b 0%,#54769c18 38%,#14263e45 100%),#283e58cf;backdrop-filter:blur(26px) saturate(135%);-webkit-backdrop-filter:blur(26px) saturate(135%);box-shadow:inset 0 1px 0 #e0f0ff45,inset 0 -1px 0 #9bbde51a,0 24px 70px #06132680,0 4px 14px #06132640;font-size:12px;scrollbar-width:thin;scrollbar-color:#b7d7fa55 transparent}
+dialog::backdrop{background:#0b192a42;backdrop-filter:blur(12px) saturate(115%);-webkit-backdrop-filter:blur(12px) saturate(115%)}
+.dialog-head{margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #bfdcff26;min-height:32px}
+.dialog-head h2{font-size:15px;font-weight:600;letter-spacing:.02em;color:#eef5fb}
+.dialog-head .icon-button{display:grid;place-items:center;width:28px;height:28px;border:1px solid #c5dfff26;border-radius:50%;background:#bddcff0c;color:#c8dbef;font-size:20px;line-height:1}
+.dialog-head .icon-button:hover{background:#bddcff20;color:#fff}
+dialog .field{margin-bottom:14px}dialog .field label{font-size:12px;color:#d5e3f2}
+dialog .field input,dialog .field select,dialog .field textarea,dialog .member-field input{min-height:36px;padding:9px 10px;border:1px solid #bdd9fa38;border-radius:9px;background:#0e233f33;box-shadow:inset 0 1px 3px #071a3026;color:#eef5fb;font-size:12px;transition:border-color .15s,background .15s}
+dialog input::placeholder,dialog textarea::placeholder{color:#a9bdd3;opacity:1}
+dialog .field :is(input,select,textarea):focus,dialog .member-field input:focus{outline:2px solid #9dccff88;outline-offset:2px;border-color:#9dccff99;background:#203b5666}
+dialog select option{background:#2b4058;color:#eef5fb}
+dialog .field small{color:#b5c8dd;font-size:11px;line-height:1.6}
+dialog .dialog-actions{margin-top:18px;gap:8px}dialog .button{min-height:36px;border-radius:9px;border:1px solid #c2ddff38;background:#b8d8ff0d;font-size:12px}
+dialog .button.primary{background:linear-gradient(135deg,#9dccff3d,#7ebeff20);border-color:#a8d2ff73;color:#eaf5ff;box-shadow:inset 0 1px 0 #e4f2ff29,0 3px 10px #07192e26}
+dialog .button:hover{background-color:#b8d8ff20}dialog .button.primary:hover{background:linear-gradient(135deg,#9dccff55,#7ebeff35)}
