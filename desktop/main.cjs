@@ -5,12 +5,13 @@ const path = require('node:path');
 const fs = require('node:fs');
 const {
   CONTENT_SECURITY_POLICY, sanitizeStatus, sanitizePreferences,
-  isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds
+  isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds, sanitizeWindowSize
 } = require('./policy.cjs');
 
 const APP_NAME = '文案审核台';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
+let windowSize = sanitizeWindowSize();
 let tray;
 let panel;
 let status = { ...INITIAL_STATUS };
@@ -38,6 +39,9 @@ function loadPreferences() {
   } catch {
     preferences = { pinned: false, launchAtLogin: false };
   }
+  try {
+    windowSize = sanitizeWindowSize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window-size.json'), 'utf8')));
+  } catch { windowSize = sanitizeWindowSize(); }
   // The OS is authoritative, including changes made in System Settings.
   if (app.isPackaged && process.platform === 'darwin') {
     preferences.launchAtLogin = app.getLoginItemSettings().openAtLogin;
@@ -73,7 +77,7 @@ function positionPanel() {
   if (!panel || panel.isDestroyed()) return;
   const bounds = tray?.getBounds() || { x: 0, y: 0, width: 0, height: 0 };
   const display = bounds.width > 0 ? screen.getDisplayMatching(bounds) : screen.getPrimaryDisplay();
-  panel.setBounds(panelBounds(bounds, display.workArea), false);
+  panel.setBounds(panelBounds(bounds, display.workArea, windowSize), false);
 }
 
 function hidePanel() {
@@ -166,8 +170,11 @@ function secureContents(contents) {
 function createPanel() {
   readyToShow = false;
   panel = new BrowserWindow({
-    width: 365,
-    height: 760,
+    ...windowSize,
+    minWidth: 340,
+    minHeight: 520,
+    maxWidth: 960,
+    maxHeight: 1200,
     show: false,
     frame: false,
     transparent: true,
@@ -177,7 +184,7 @@ function createPanel() {
     title: APP_NAME,
     hasShadow: true,
     roundedCorners: true,
-    resizable: false,
+    resizable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -197,6 +204,16 @@ function createPanel() {
   });
   panel.setMenu(null);
   secureContents(panel.webContents);
+  panel.on('resized', () => {
+    const [width, height] = panel.getSize();
+    windowSize = sanitizeWindowSize({ width, height });
+    const destination = path.join(app.getPath('userData'), 'window-size.json');
+    try {
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.writeFileSync(`${destination}.tmp`, JSON.stringify(windowSize), { mode: 0o600 });
+      fs.renameSync(`${destination}.tmp`, destination);
+    } catch (error) { console.warn('Cannot save window size:', error.message); }
+  });
   panel.on('blur', scheduleBlurHide);
   panel.on('focus', () => clearTimeout(blurTimer));
   panel.on('sheet-begin', () => { nativeSheetDepth += 1; clearTimeout(blurTimer); });

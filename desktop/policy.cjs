@@ -68,6 +68,11 @@ function trayStatus(status) {
   return '审核台';
 }
 
+function sanitizeWindowSize(value) {
+  const dimension = (n, fallback, min, max) => Number.isFinite(n) ? Math.round(Math.max(min, Math.min(max, n))) : fallback;
+  return { width: dimension(value?.width, 365, 340, 960), height: dimension(value?.height, 760, 520, 1200) };
+}
+
 function panelBounds(trayBounds, workArea, desired = { width: 365, height: 760 }) {
   const margin = 8;
   const width = Math.min(desired.width, Math.max(1, workArea.width - margin * 2));
@@ -92,5 +97,6 @@ module.exports = {
   isTrustedDocument,
   isAllowedExternalURL,
   trayStatus,
-  panelBounds
+  panelBounds,
+  sanitizeWindowSize
 };

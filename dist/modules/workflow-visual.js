@@ -18,6 +18,7 @@ export class WorkflowVisual {
   measure(){
     const box=this.root.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
     this.canvas.width=box.width*dpr;this.canvas.height=box.height*dpr;this.ctx?.setTransform(dpr,0,0,dpr,0,0);
+    if(this.width!==box.width||this.height!==box.height)this.particles=[];
     this.width=box.width;this.height=box.height;
     const relative=n=>{const r=n.getBoundingClientRect();return{x:r.left-box.left+r.width/2,y:r.top-box.top+r.height/2,width:r.width};};
     this.points=this.nodes.map(relative);
@@ -103,18 +104,21 @@ export class WorkflowVisual {
     if(!rect||!text)return;
     const active=this.groups.filter(g=>g.ids.length);if(!active.length)return;
     // Fragment the line exactly at the top clipping edge, then feed enabled rules.
-    const width=Math.max(12,rect.width-23),pixels=[];
+    const row=source.querySelector?.('.source-row');
+    const fontSize=row&&typeof getComputedStyle==='function'?parseFloat(getComputedStyle(row).fontSize):10;
+    const scale=fontSize/10,lineHeight=Math.ceil(14*scale);
+    const width=Math.max(12,rect.width-23*scale),pixels=[];
     // Sample the outgoing glyphs, so the text itself breaks into square fragments.
-    const raster=document.createElement('canvas');raster.width=Math.ceil(width);raster.height=14;
+    const raster=document.createElement('canvas');raster.width=Math.ceil(width);raster.height=lineHeight;
     const ink=raster.getContext?.('2d',{willReadFrequently:true});
-    if(ink){ink.font='10px "Roboto Mono", "PingFang SC", monospace';ink.fillStyle='#fff';ink.fillText(text,0,10);const data=ink.getImageData(0,0,raster.width,14).data;
-      for(let y=1;y<13;y+=2)for(let x=0;x<raster.width;x+=2)if(data[(y*raster.width+x)*4+3]>70)pixels.push({x,y});
+    if(ink){ink.font=`${fontSize}px "Roboto Mono", "PingFang SC", monospace`;ink.fillStyle='#fff';ink.fillText(text,0,fontSize);const data=ink.getImageData(0,0,raster.width,lineHeight).data;
+      for(let y=1;y<lineHeight-1;y+=2)for(let x=0;x<raster.width;x+=2)if(data[(y*raster.width+x)*4+3]>70)pixels.push({x,y});
     }
     const count=Math.min(42,pixels.length||Math.max(8,text.length));
     for(let i=0;i<count;i++){
       const g=active[(i+this.sourceOffset)%active.length],to=this.point(g.index,(i+this.sourceOffset)%g.rows,0);if(!to)continue;
       const pixel=pixels.length?pixels[Math.floor(i/count*pixels.length)]:{x:i/count*width,y:3+(i%3)*2};
-      const from={x:rect.left-box.left+19+pixel.x,y:rect.top-box.top+pixel.y-2};
+      const from={x:rect.left-box.left+19*scale+pixel.x,y:rect.top-box.top+pixel.y-2};
       this.particles.push({from,to:{...to},at:this.clock+i*6,duration:650+(i*43)%390,g:g.category,size:1.2+(i%3)*.45,incoming:true,dissolve:true});
     }
   }

@@ -404,3 +404,15 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
   exposed.hide();
   assert.deepEqual(sent[1], ['review:hide']);
 });
+
+test('saved window dimensions are bounded and restored independently', () => {
+  assert.deepEqual(policy.sanitizeWindowSize(), { width: 365, height: 760 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 520, height: 680 }), { width: 520, height: 680 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: Infinity, height: '800' }), { width: 365, height: 760 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 20, height: 9000 }), { width: 340, height: 1200 });
+  const desired = policy.sanitizeWindowSize({ width: 540, height: 650 });
+  const bounds = panelBounds({ x: 1400, y: 0, width: 40, height: 24 }, { x: 0, y: 24, width: 1440, height: 876 }, desired);
+  assert.equal(bounds.width, 540);
+  assert.equal(bounds.height, 650);
+  assert.ok(bounds.x + bounds.width <= 1432);
+});
