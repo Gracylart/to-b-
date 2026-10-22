@@ -1,6 +1,6 @@
 {
   "name": "copy-review-desk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "A glass macOS menu bar workspace for copy review and project planning.",
   "type": "module",
@@ -16,8 +16,9 @@
     "check": "node scripts/check-build.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "prepare:electron": "node node_modules/electron/install.js",
-    "build:mac": "npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir zip --arm64",
-    "build:mac:dir": "npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir --arm64"
+    "build:mac": "npm run prepare:pdf && npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir zip --arm64",
+    "build:mac:dir": "npm run prepare:pdf && npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir --arm64",
+    "prepare:pdf": "node scripts/prepare-pdf-font.mjs"
   },
   "devDependencies": {
     "electron": "44.9.1",
@@ -83,5 +84,10 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299"
   }
 }

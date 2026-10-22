@@ -1,3 +1,4 @@
+import {RevisionView} from './modules/revision-view.js';
 import {BLUE_PALETTE,enabledRuleIds,ruleGroups,matrixGroups,matrixCount,TEAM_ROLES} from './modules/review-model.js';
 import {RULES,analyzeDocument} from './modules/audit-engine.js';
 import {loadWorkspace,saveWorkspace,escapeHTML as esc,newId,formatDate,timelinePosition} from './modules/workspace.js';
@@ -7,6 +8,7 @@ const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
 let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false;
+const revision=new RevisionView({desktop,notify,refresh:()=>{if(view==='revision')render();}});
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
 const currentMatrices=()=>matrixGroups(currentRules(),job&&view==='review'?job.matrixCount:selectedProject().matrixCount);
@@ -20,7 +22,8 @@ const button=(label,action,cls='')=>`<button class="button ${cls}" data-action="
 function notify(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function persist(){try{saveWorkspace(workspace);}catch{notify('本机存储空间不足，本次改动暂未保存。');}}
 function setView(next){
-  if(!['home','project','review'].includes(next))return;
+  if(!['home','project','review','revision'].includes(next))return;
+  if(next==='revision')revision.loaded=false;
   view=next;render();
 }
 function selectProject(id){if(workspace.projects.some(p=>p.id===id)){workspace.selectedProject=id;expanded=id;persist();setView('project');}}
@@ -30,8 +33,8 @@ function setFooter(){
 function render(){
   visual?.destroy();visual=null;
   document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-  $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():reviewHTML();
-  $('viewRoot').scrollTop=0;setFooter();
+  $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():view==='revision'?revision.html():reviewHTML();
+  $('viewRoot').scrollTop=0;setFooter();if(view==='revision')revision.bind();
   if(view==='review'){bindQueueDrag();visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
 }
 function homeHTML(){
@@ -53,7 +56,7 @@ function homeHTML(){
     </section><div class="rule"></div>
     <section><div class="section-head"><h2>过往项目</h2><button class="section-link" data-action="new-project">＋ 新项目</button></div>
       <div class="project-list past-projects">${workspace.projects.map(p=>`<div class="project-group ${expanded===p.id?'expanded':''}"><button class="project-summary" data-expand="${esc(p.id)}" aria-expanded="${expanded===p.id}">${icon('a-icon-claude')}<span>${esc(p.code)}</span><span class="project-stage">${esc(p.phase)}_${formatDate(p.due)}</span><span class="chevron">${expanded===p.id?'−':'＋'}</span></button>
-        <div class="project-docs">${p.documents.slice(0,7).map(d=>`<button class="mini-doc" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="doc-name">${esc(d.name)}</span><span class="doc-code">${esc(d.code||'LOCAL')}</span></button>`).join('')}<button class="mini-doc" data-project-open="${esc(p.id)}"><span class="mint">查看项目详情</span><span>→</span></button></div></div>`).join('')}</div>
+        <div class="project-docs">${p.documents.slice(0,7).map(d=>`<button class="mini-doc" data-copy-code="${esc(d.code||'')}" title="点击复制料号"><span class="doc-name">${esc(d.name)}</span><span class="doc-code">${esc(d.code||'LOCAL')}</span></button>`).join('')}<button class="mini-doc" data-project-open="${esc(p.id)}"><span class="mint">查看项目详情</span><span>→</span></button></div></div>`).join('')}</div>
     </section>
     <section class="planning"><div class="section-head"><h2>项目规划</h2><div class="week-nav"><button data-action="plan-edit">${planEditing?'完成':'编辑日期'}</button><button data-action="timeline-prev" aria-label="上一周">‹</button><span class="tiny mono muted">24 天</span><button data-action="timeline-next" aria-label="下一周">›</button></div></div>${timelineHTML()}<div class="legend"><span><i style="color:var(--mint)"></i> 阶段计划</span><span>│ 今日</span><span style="margin-left:auto">${workspace.projects.length} 项目</span></div></section>
     <div class="home-actions">${button('＋ 导入文案','import','grow')}${button('开始审核 →','start-project','primary grow')}</div>
@@ -74,11 +77,11 @@ function projectHTML(){
 <details class="project-members" open><summary>项目成员 <span class="meta">${(p.members||[]).length}</span><span class="member-toggle"></span></summary><section><div class="section-head"><span></span><button class="section-link" data-action="members">管理</button></div><div class="members role-members">${[...new Set([...TEAM_ROLES,...(p.members||[]).map(m=>m.role)])].map(role=>{const members=(p.members||[]).filter(m=>m.role===role);return `<div class="team-role"><span class="role-name">${esc(role)}</span><div class="role-people">${members.length?members.map(m=>`<span class="person-chip" title="${esc(m.name)}">${esc(m.name)}</span>`).join(''):'<span class="unassigned">—</span>'}</div></div>`;}).join('')}</div></section></details>
     <dl class="project-meta"><div><dt>PDM 网址</dt><dd><button class="text-button" data-action="project-settings">${p.pdmUrl?'已关联 · 编辑':'待关联 ↗'}</button></dd></div><div><dt>项目文档</dt><dd>${p.documents.length} 份</dd></div><div><dt>上市区域</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.region)} <span>⌄</span></button></dd></div><div><dt>语种</dt><dd><button class="meta-select" data-action="project-settings">${esc(p.language)} <span>⌄</span></button></dd></div></dl>
     <div class="project-stages">${['T0','DVT','PVT','MP'].map(stage=>`<button class="${p.phase===stage?'current':''}" data-stage="${stage}" title="查看阶段计划"><i></i><span>${stage}${stage===p.phase?'_'+formatDate(p.due):''}</span></button>`).join('')}</div>
-    <section><div class="section-head"><h2>BOM</h2><button class="section-link" data-action="add-bom">＋ 添加</button><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
-      <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-document="${esc(d.id)}" data-project="${esc(p.id)}"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code==='LOCAL'?'待编码':d.code||'待编码')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
+    <details class="material-section" data-section="bom" open><summary>BOM <span>收起 / 展开</span></summary><section><div class="section-head"><h2>物料</h2><button class="section-link" data-action="add-bom">＋ 添加</button><div class="bom-tools"><button data-bom-filter="all" class="${bomFilter==='all'?'active':''}">全部 ${p.documents.length}</button><button data-bom-filter="pending" class="${bomFilter==='pending'?'active':''}">待审核 ${p.documents.filter(d=>d.status!=='reviewed').length}</button></div></div>
+      <div class="bom-list">${docs.length?docs.map(d=>`<button class="bom-row ${d.status==='reviewed'?'':'pending'}" data-copy-code="${esc(d.code||'')}" title="点击复制料号"><span class="status-square"></span><span class="bom-name">${esc(d.name)}</span><span class="bom-code">${esc(d.code==='LOCAL'?'待编码':d.code||'待编码')}</span><span class="bom-arrow">›</span></button>`).join(''):'<div class="empty-state">当前项目的文档已全部检查</div>'}</div>
       
-    </section><div class="rule"></div>
-    <section><div class="section-head"><h2>SKU</h2><span class="meta">${(p.skus||[]).length} 版本</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section>
+    </section></details><div class="rule"></div>
+    <details class="material-section" data-section="sku" open><summary>SKU <span>收起 / 展开</span></summary><section><div class="section-head"><h2>版本</h2><span class="meta">${(p.skus||[]).length} 版本</span></div><table class="table"><thead><tr><th>版本</th><th>区域</th><th>语种</th><th>物料</th></tr></thead><tbody>${(p.skus||[]).map(s=>`<tr><td title="${esc(s.name)}">${esc(s.name)}</td><td>${esc(s.region)}</td><td>${esc(s.language)}</td><td>${esc(s.materials)}</td></tr>`).join('')}</tbody></table></section></details>
     <div class="delivery-line"><span>下一次交付</span><strong>${esc(p.phase)} · ${esc(p.due)}</strong></div>
     <div class="project-actions">${button('项目资料','project-settings')}${button('审核本项目 →','start-project','primary')}</div>
   </div>`;
@@ -96,7 +99,7 @@ function reviewHTML(){
       <canvas class="flow-canvas" aria-hidden="true"></canvas>
 
     </section>
-    <section class="queue-section ${queueExpanded?'expanded':''}" id="queuePanel"><button class="queue-grip" id="queueGrip" aria-label="${queueExpanded?'收起待确认':'展开待确认'}" aria-expanded="${queueExpanded}" aria-controls="findings"><i></i><span>${queueExpanded?'下拉收起':'上拉展开'}</span></button><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
+    <section hidden class="queue-section ${queueExpanded?'expanded':''}" id="queuePanel"><button class="queue-grip" id="queueGrip" aria-label="${queueExpanded?'收起待确认':'展开待确认'}" aria-expanded="${queueExpanded}" aria-controls="findings"><i></i><span>${queueExpanded?'下拉收起':'上拉展开'}</span></button><div class="section-head"><h2>待确认 <span class="faint small" id="queueTotal">0</span></h2><div class="queue-tabs"><button data-queue-filter="all" class="${queueFilter==='all'?'selected':''}">全部</button><button data-queue-filter="error" class="${queueFilter==='error'?'selected':''}">错误</button><button data-queue-filter="warning" class="${queueFilter==='warning'?'selected':''}">提示</button></div></div><div class="finding-list" id="findings"></div></section>
     <div class="review-controls"><div class="progress-meta"><span id="progressLabel">等待开始</span><span id="progressPercent">0%</span></div><div class="progress-track" role="progressbar" aria-label="审核进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack"><div class="progress-fill" id="progressFill"></div></div>
       <div class="review-buttons" id="reviewButtons"></div><div class="review-source" id="reviewSource">LOCAL RULE CHECK · 文案仅在本机处理</div>
     </div>
@@ -127,7 +130,7 @@ function updateReview(){
   const elapsed=job?elapsedMs():0,secs=Math.floor(elapsed/1000),clock=`${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')}`;
   $('progressLabel').textContent=job?.status==='complete'?`已完成 · ${clock}`:job?.status==='paused'?`已暂停 · ${clock}`:job?.status==='cancelled'?'已停止，已检查结果可导出':job?`${['解析文案','运行规则','归集问题','保存结果'][job.tick%4]} · ${clock}`:'等待开始';
   $('progressPercent').textContent=Math.floor(fraction*100)+'%';$('progressFill').style.width=fraction*100+'%';$('progressTrack').setAttribute('aria-valuenow',String(Math.floor(fraction*100)));
-  const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('导出','export')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.filter(d=>d.text.trim()).every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
+  const stateKey=job?.status||'idle';if($('reviewButtons').dataset.state!==stateKey){$('reviewButtons').dataset.state=stateKey;$('reviewButtons').innerHTML=stateKey==='running'?button('Ⅱ 暂停','pause')+button('停止','stop')+button('查看结果 →','report','primary'):stateKey==='paused'?button('▶ 继续','resume','primary')+button('停止','stop')+button('结果','report'):['complete','cancelled'].includes(stateKey)?button('↻ 重新审核','replay')+button('查看结果 →','report','primary'):button('＋ 导入','import')+button(p.documents.filter(d=>d.text.trim()).every(d=>d.example)?'演示审核 →':'开始审核 →','start-project','primary');}
   $('reviewSource').textContent=job?.example?'示例演练':'本地预检';
   visual?.setState({running:job?.status==='running',progress:fraction,status:job?.status||'idle',reducedMotion:reducedMotion()});
 }
@@ -244,23 +247,23 @@ function finishPlanEdit(){
   for(const c of changes){if(!c.start.reportValidity()||!c.due.reportValidity())return false;if(c.due.value<c.start.value){notify('结束日期不能早于开始日期');c.due.focus();return false;}}
   for(const c of changes){c.p.start=c.start.value;c.p.due=c.due.value;}persist();return true;
 }
-function showReport(){
+async function showReport(){
   if(!job?.results.length){notify('完成第一份文案检查后即可查看结果。');return;}
-  const counts=reviewCounts();
-  openDialog('审核结果',`<div class="report-summary"><span><strong>${job.results.length}</strong> 文档</span><span><strong>${counts.passed}</strong> 通过规则</span><span><strong>${counts.issues}</strong> 待确认</span></div><p class="tiny faint" style="margin-bottom:12px">${job.example?'示例演练 · ':''}本地规则预检结果，提示项需人工判断。${counts.issues>200?'此处显示前 200 项，导出包含全部结果。':''}</p><div class="report-list">${counts.findings.length?counts.findings.slice(0,200).map(f=>`<div class="report-item"><div class="${f.severity==='error'?'error':'warning'}">${esc(f.ruleName)} · L${f.line}</div><strong>${esc(f.message)}</strong><div class="tiny faint">${esc(f.filename)}</div><blockquote>${esc(f.excerpt)}</blockquote><div class="suggestion">${esc(f.suggestion)}</div></div>`).join(''):'<div class="empty-state"><span class="checkmark">✓</span>所检查规则未发现问题</div>'}</div><div class="dialog-actions">${button('导出 JSON 报告','export','primary')}${button('关闭','close-dialog')}</div>`);
+  if(!desktop?.pdf){notify('PDF 批注请在桌面应用中查看');return;}
+  try{
+    if(!job.pdfRecord||job.pdfCount!==job.results.length){job.pdfRecord=await desktop.pdf('report',{name:job.projectName,results:job.results});job.pdfCount=job.results.length;}
+    await desktop.pdf('open',{id:job.pdfRecord.id,version:'annotated.pdf'});
+  }catch(error){notify(error.message);}
+
 }
 function showFinding(id,documentId){
   const r=job?.results.find(r=>r.document.id===documentId),f=r?.analysis.findings.find(f=>f.id===id);if(!f)return;
   openDialog(f.ruleName,`<div class="dialog-copy"><p class="${f.severity==='error'?'error':'warning'}">${esc(f.message)}</p><p class="tiny faint">${esc(r.document.name)} · 第 ${f.line} 行</p><div class="document-preview" style="margin:10px 0">${esc(f.excerpt)}</div><p class="mint">${esc(f.suggestion)}</p></div><div class="dialog-actions"><button class="button primary" data-edit-document="${esc(documentId)}" data-project="${esc(job.projectId)}">编辑原文</button>${button('全部结果','report')}</div>`);
 }
-function exportReport(){
-  if(!job?.results.length){notify('还没有可以导出的检查结果。');return;}
-  const report={application:'Review Desk',version:1,createdAt:new Date().toISOString(),project:job.projectName,enabledRules:job.enabledRules,example:job.example,status:job.status,summary:{documents:job.results.length,...reviewCounts(),findings:undefined},results:job.results.map(r=>({document:r.document.name,...r.analysis}))};
-  const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=`review-${jobProject().code.replace(/[^\w-]/g,'_')}-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('审核报告已导出。');
-}
+
 async function showSettings(){
   const prefs=desktop?await desktop.getPreferences():null;
-  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。未接入远程模型、PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
+  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。修订页可配置模型接口；未接入 PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
   $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*4):0,status:job?.status||'idle',reducedMotion:reducedMotion()});};
   if(desktop){$('pinSetting').onchange=async e=>{const p=await desktop.setPinned(e.target.checked);$('pinWindow').setAttribute('aria-pressed',String(p.pinned));};$('loginSetting').onchange=async e=>{const p=await desktop.setPreferences({launchAtLogin:e.target.checked});e.target.checked=p.launchAtLogin;};}
 }
@@ -272,12 +275,18 @@ const actions={
   'project-next':()=>{const i=workspace.projects.findIndex(p=>p.id===workspace.selectedProject);selectProject(workspace.projects[(i+1)%workspace.projects.length].id);},
   'plan-edit':()=>{if(planEditing&&!finishPlanEdit())return;planEditing=!planEditing;render();},
   'timeline-prev':()=>{if(planEditing&&!finishPlanEdit())return;timelineOffset--;render();},'timeline-next':()=>{if(planEditing&&!finishPlanEdit())return;timelineOffset++;render();},
-  pause:pauseRun,resume:resumeRun,stop:stopRun,report:showReport,export:exportReport,
+  pause:pauseRun,resume:resumeRun,stop:stopRun,report:showReport,
   replay:()=>{if(job){const p=jobProject(),ids=new Set(job.documents.map(d=>d.id));beginRun(p.id,p.documents.filter(d=>ids.has(d.id)));}},
   'close-dialog':closeDialog,
 };
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.copyCode!==undefined){
+    const code=b.dataset.copyCode;
+    if(!/^\d+$/.test(code)){notify('此物料尚无数字料号');return;}
+    navigator.clipboard.writeText(code).then(()=>notify('料号已复制：'+code)).catch(()=>notify('复制失败，请重试'));
+    return;
+  }
   if(b.dataset.view){setView(b.dataset.view);return;}
   if(b.dataset.action){actions[b.dataset.action]?.();return;}
   if(b.dataset.expand){expanded=expanded===b.dataset.expand?null:b.dataset.expand;render();return;}

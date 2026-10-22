@@ -164,3 +164,9 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## PDF components
+
+- pdf-lib and @pdf-lib/fontkit: MIT; license files included with their packaged modules.
+- pdfjs-dist: Apache-2.0; license included with packaged module.
+- Noto Sans SC: SIL Open Font License 1.1. Copyright and full license: dist/assets/pdf/OFL.txt. Source: https://github.com/google/fonts/tree/main/ofl/notosanssc .

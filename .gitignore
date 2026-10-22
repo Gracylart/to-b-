@@ -8,3 +8,8 @@ node_modules/
 work/
 release/
 outputs/
+
+# Downloaded by npm run prepare:pdf; bundled in the application.
+dist/assets/pdf/NotoSansSC.ttf
+
+dist/assets/pdf/NotoSansSC-Regular.ttf

@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, screen, shell, session } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, screen, shell, session, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const {
@@ -12,6 +12,7 @@ const APP_NAME = '文案审核台';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
 let windowSize = sanitizeWindowSize();
+let pdfWorkspace;
 let tray;
 let panel;
 let status = { ...INITIAL_STATUS };
@@ -249,6 +250,28 @@ function trustedSender(event) {
 }
 
 function installIPC() {
+  ipcMain.handle('review:pdf', async (event, action, payload={}) => {
+    if (!trustedSender(event)) throw Error('Untrusted sender');
+    if (!pdfWorkspace) pdfWorkspace = require('./pdf-workspace.cjs').createWorkspace(app.getPath('userData'));
+    if(action==='list') return pdfWorkspace.list();
+    if(action==='sample') return pdfWorkspace.sample();
+    if(action==='import') {
+      nativeSheetDepth++;
+      try { const result=await dialog.showOpenDialog(panel,{title:'导入原始 PDF',properties:['openFile'],filters:[{name:'PDF',extensions:['pdf']}]});
+        if(result.canceled)return null;
+        const selected=result.filePaths[0];if(fs.statSync(selected).size>20*1024*1024)throw Error('PDF 大小不能超过 20 MB');
+        return await pdfWorkspace.ingest(fs.readFileSync(selected),path.basename(selected));
+      } finally {nativeSheetDepth=Math.max(0,nativeSheetDepth-1);ignoreBlurUntil=Date.now()+400;}
+    }
+    if(action==='report') {
+      if(!Array.isArray(payload.results)||payload.results.length>100||JSON.stringify(payload.results).length>2000000)throw Error('报告过大');
+      return pdfWorkspace.fromText(payload.results,String(payload.name||'审核结果'));
+    }
+    if(action==='revise')return pdfWorkspace.revise(payload.id,payload.config);
+    if(action==='open') {const target=await pdfWorkspace.resolvePDF(payload.id,payload.version);const error=await shell.openPath(target);if(error)throw Error(error);return true;}
+    if(action==='folder'){await fs.promises.mkdir(pdfWorkspace.dir,{recursive:true});const error=await shell.openPath(pdfWorkspace.dir);if(error)throw Error(error);return true;}
+    throw Error('Unsupported PDF action');
+  });
   ipcMain.on('review:status', (event, payload) => {
     if (!trustedSender(event)) return;
     const next = sanitizeStatus(payload);
