@@ -118,3 +118,59 @@ html.desktop .glass-shell::before{content:'';position:absolute;right:5px;bottom:
 
 /* Stream rows own their wrapped height; only new scan events move the feed. */
 .source-viewport{display:flex;flex-direction:column;justify-content:flex-end}.source-feed{flex:none;animation:none!important;will-change:transform}.source-row{height:auto;min-height:1.6em;flex:none;align-items:flex-start;line-height:1.6;padding:.2em 0}.source-row>span:last-child{display:block;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:inherit}.source-scan{display:none}.source-row.reading{color:inherit}
+
+
+/* Review: compact decisions around a continuous, event-driven code stream. */
+.review-project{display:flex;align-items:flex-end;gap:.75rem;margin:.25rem 0 .8rem}
+.review-project .field{min-width:0;flex:1;margin:0}
+.review-project .field label{font-size:.833333rem;margin-bottom:.35rem;color:var(--muted)}
+.review-project select{min-height:2.6rem;padding:.45rem .65rem;font-size:1rem;border-radius:.6rem}
+.review-project .status-pill{flex-shrink:0;align-self:flex-end;margin:0 0 .35rem;border:0;background:transparent;padding:.35rem 0;font-size:.833333rem;letter-spacing:0}
+.review-summary{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:1rem;margin:0 0 .9rem;padding:.4rem 0 .65rem}
+.review-summary>div{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.review-summary>div>span{font-size:.833333rem;color:var(--muted)}
+.review-summary strong{font:500 1.5rem/1.2 var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
+.review-summary strong b{font-weight:500}.review-summary strong small{font-size:.9rem;color:var(--faint);margin-left:.3rem}
+.review-summary>div:last-child strong{color:#d1dfed}
+.review-view .workflow{padding-top:.65rem}.review-view .flow-heading{margin-bottom:.65rem}
+.review-view .source-panel{height:13rem;display:flex;flex-direction:column;border-radius:.65rem;background:#14233829}
+.review-view .source-heading{height:2rem;min-height:2rem;padding:0 .65rem}
+.review-view .source-heading .source-name{font-family:var(--sans);font-size:.833333rem}
+.review-view .source-viewport{height:auto;flex:1;min-height:0;mask-image:linear-gradient(transparent,#000 12%,#000 100%);justify-content:flex-end;padding-bottom:.5rem}
+.review-view .source-feed{padding:0 .65rem;will-change:transform;transform-origin:bottom left}
+.review-view .source-row{display:flex;align-items:center;gap:.5rem;min-height:1.9em;height:auto;padding:.18em 0;font-size:clamp(.916667rem,2.9cqw,1.25rem);line-height:1.5;white-space:normal;will-change:transform,opacity,filter}
+.review-view .source-code{font:inherit;color:#bedbfa;min-width:0;flex:1;overflow-wrap:anywhere}
+.review-view .source-row .source-result{display:block!important;flex:0 0 auto;font:inherit;font-size:.85em;color:#a1b9d0;white-space:nowrap;overflow:visible}
+.review-view .flow-transfer{height:1rem}.review-view .rule-bar{height:1.5rem}.review-view .rule-bars{gap:.35rem}
+.review-view .review-controls{margin-top:.8rem!important;padding-top:.65rem;padding-bottom:.3rem}
+.review-view .review-buttons{margin-top:.65rem}.review-view .progress-meta{line-height:1.4}
+.flow-idle .agent-cell{opacity:.45}.flow-idle .source-panel{background:#14233818}
+.flow-reduced .source-row{will-change:auto;filter:none!important;transform:none!important;opacity:1!important}
+@media (prefers-reduced-motion:reduce){.source-row{will-change:auto}.bar-fill{transition:none}}
+.review-view .agent-groups,.review-view .agent-groups[data-group-count="4"]{height:13rem}
+/* Short panels keep primary actions on screen without reducing type or cells. */
+@media (max-height:600px){
+  .review-project{margin-bottom:.65rem}.review-project .field{gap:.25rem}.review-project .field label{margin-bottom:0}
+  .review-summary{gap:.65rem;margin-bottom:.55rem;padding:.3rem 0 .4rem}
+  .review-summary>div{flex-direction:row;align-items:baseline;gap:.4rem}.review-summary>div>span{white-space:nowrap}
+  .review-summary strong{font-size:1.1rem;white-space:nowrap}.review-summary strong small{font-size:.833333rem;margin-left:.15rem}
+  .review-view .source-panel,.review-view .agent-groups,.review-view .agent-groups[data-group-count="4"]{height:10.666667rem}
+  .review-view .agent-groups{row-gap:.666667rem}.review-view .flow-heading{margin-bottom:.45rem}
+  .review-view .rule-bar{height:1.416667rem}.review-view .flow-transfer{height:.75rem}
+  .review-view .review-controls{margin-top:.6rem!important;padding-top:.5rem}
+}
+.review-view .source-row{font-size:clamp(.916667rem,2.9cqw,15px)}
+/* Wide, short windows spend their width on the live checks, not empty rows. */
+@media (min-width:680px) and (max-height:600px){
+  .review-project{align-items:center;margin-bottom:.5rem}
+  .review-project .field{flex-direction:row;align-items:center;gap:.75rem}
+  .review-project .field label{flex:0 0 auto;margin:0}.review-project .field select{flex:1}
+  .review-project .status-pill{align-self:center;margin:0}
+  .review-summary{margin-bottom:.45rem;padding:.25rem 0 .35rem}
+  .review-view .workflow{display:grid;grid-template-columns:minmax(0,1fr) minmax(11rem,14rem);column-gap:1.5rem;align-items:center}
+  .review-view .flow-heading{grid-column:1/-1}.review-view .flow-workspace{min-width:0}
+  .review-view .flow-transfer{display:none}.review-view .rule-bars{align-self:center;gap:.9rem}
+}
+
+/* Copyable material rows do not imply a details page. */
+.material-toggle::after{content:"展开 ⌄"}.material-section[open] .material-toggle::after{content:"收起 ⌃"}

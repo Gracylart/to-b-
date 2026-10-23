@@ -10,7 +10,7 @@ export class WorkflowVisual {
     this.fills=[...root.querySelectorAll('.bar-fill')];this.counts=[...root.querySelectorAll('.rule-count')];
     this.particles=[];this.loops=[];this.landings=[];this.next=groups.map((_,i)=>i*75);this.serial=groups.map(()=>0);
     this.clock=0;this.lastTime=null;this.running=false;this.progress=0;this.reducedMotion=reducedMotion;this.alive=true;this.frameId=0;
-    this.values=[0,0,0,0];this.targets=[0,0,0,0];this.totals=[0,0,0,0];this.sourceKey='';this.sourceLines=[];this.logs=[];
+    this.values=[0,0,0,0];this.targets=[0,0,0,0];this.totals=[0,0,0,0];this.sourceKey='';this.logs=[];this.streamRows=new Map();this.streamOffset=0;this.streamVelocity=0;this.lastStreamFlush=-Infinity;
     this.observer=new ResizeObserver(()=>this.measure());this.observer.observe(root);
     this.onVisibility=()=>{this.lastTime=null;if(!document.hidden)this.wake();};document.addEventListener('visibilitychange',this.onVisibility);
     this.measure();this.paint();
@@ -18,52 +18,98 @@ export class WorkflowVisual {
   measure(){
     const box=this.root.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
     this.canvas.width=box.width*dpr;this.canvas.height=box.height*dpr;this.ctx?.setTransform(dpr,0,0,dpr,0,0);
-    if(this.width!==box.width||this.height!==box.height)this.particles=[];
+    if(this.width!==box.width||this.height!==box.height){this.particles=[];this.streamOffset=0;this.streamVelocity=0;const feed=this.root.querySelector('.source-feed');if(feed)feed.style.transform='';}
     this.width=box.width;this.height=box.height;
     const relative=n=>{const r=n.getBoundingClientRect();return{x:r.left-box.left+r.width/2,y:r.top-box.top+r.height/2,width:r.width};};
     this.points=this.nodes.map(relative);
     this.cellIndices=this.groups.map(g=>this.nodes.map((n,i)=>({n,i})).filter(({n})=>Number(n.dataset?.group)===g.index).map(({i})=>i));this.destinations=this.tracks.map(n=>{const r=relative(n);return{...r,x:r.x-r.width/2};});
     const panel=this.root.querySelector('.source-panel');this.sourcePoint=panel?relative(panel):null;
   }
-  setSource(document,status='idle'){
-    const key=(document?.id||'')+'\0'+(document?.text||'');
-    this.root.querySelector('.source-state').textContent={running:'SCANNING',paused:'PAUSED',complete:'CHECKED',cancelled:'STOPPED',idle:'READY'}[status]||'READY';
+  setSource(source,status='idle'){
+    const key=(source?.id||'')+'\0'+(source?.text||'');
+    const name=this.root.querySelector('.source-name');
+    name.textContent=status==='idle'?'扫描记录':source?.filename||source?.name||'扫描记录';name.title=name.textContent;
     if(key===this.sourceKey)return;
-    this.sourceKey=key;this.sourceStart=this.clock;this.profiles=this.groups.map(g=>fileCadence(document,g));this.next=this.groups.map((g,i)=>this.clock+i*65);
-    this.root.querySelector('.source-name').textContent='review.worker.ts';
-    const count=this.groups.reduce((n,g)=>n+g.ids.length,0);
-    this.sourceLines=[];
-    this.sourceOffset=-1;this.paintSource(0);
+    this.sourceKey=key;this.profiles=this.groups.map(g=>fileCadence(source,g));this.next=this.groups.map((g,i)=>this.clock+i*65);
   }
   setLogs(logs){
-    const next=logs.filter(l=>l.level==='scan').slice(-12).map(l=>({text:`${l.time} ${l.text}`,level:l.level}));
+    // The source is the actual scan event log. No generated or looping code.
+    const next=logs.filter(l=>l.level==='scan').slice(-12).map(l=>({
+      key:String(l.id??`${l.time}\0${l.text}`),text:l.rule?`check(${JSON.stringify(l.rule)})`:l.text,
+      detail:l.text,findings:l.findings,time:l.time,
+    }));
     const key=JSON.stringify(next);if(key===this.logKey)return;
-    const previous=this.logs;this.logKey=key;this.logs=next;
-    if(previous.length&&next.length&&previous[0].text!==next[0].text&&this.running&&!this.reducedMotion)this.dissolveLine(previous[0].text);
-    this.paintSource(0,true);
+    this.logKey=key;this.logs=next;this.streamPending=true;
+    if(this.status!=='paused'&&(!this.running||this.reducedMotion||this.clock-this.lastStreamFlush>=220))this.paintSource();
+    this.wake();
   }
-  paintSource(offset,force=false){
-    if(!force&&this.renderedLogKey===this.logKey)return;
-    this.renderedLogKey=this.logKey;this.sourceOffset=0;
-    const feed=this.root.querySelector('.source-feed');
-    const oldHeight=feed.getBoundingClientRect().height;
-    feed.replaceChildren();
-    for(const log of this.logs){
-      const row=document.createElement('div');row.className='source-row log-row';row.title=log.text;
-      const num=document.createElement('span');num.textContent='';
-      const text=document.createElement('span');text.textContent=log.text;row.append(num,text);feed.append(row);
+  paintSource(){
+    if(!this.streamPending)return;
+    this.streamPending=false;this.lastStreamFlush=this.clock;
+    const feed=this.root.querySelector('.source-feed'),viewport=this.root.querySelector('.source-viewport');
+    const animated=this.running&&!this.reducedMotion,wanted=new Set(this.logs.map(l=>l.key));
+    const retained=[...this.streamRows.values()].find(item=>wanted.has(item.log.key));
+    const oldTop=retained?.node.getBoundingClientRect().top;
+    for(const [key,item] of this.streamRows)if(!wanted.has(key)){
+      item.node.remove();this.streamRows.delete(key);
     }
-    this.feedAnimation?.cancel();
-    if(this.running&&!this.reducedMotion&&feed.animate){
-      const added=Math.max(0,feed.getBoundingClientRect().height-oldHeight);
-      this.feedAnimation=feed.animate([{transform:`translateY(${Math.min(added||24,90)}px)`,opacity:.65},{transform:'translateY(0)',opacity:1}],{duration:420,easing:'cubic-bezier(.22,1,.36,1)'});
+    let added=0;
+    for(const log of this.logs){
+      if(this.streamRows.has(log.key))continue;
+      const row=document.createElement('div');row.className='source-row log-row';row.title=log.detail;
+      const code=document.createElement('code');code.className='source-code';code.textContent=log.text;
+      row.append(code);
+      if(Number.isFinite(log.findings)){
+        const result=document.createElement('span');result.className='source-result';result.textContent=log.findings?`${log.findings} 项`:'✓';
+        result.setAttribute('aria-label',log.findings?`${log.findings} 项待修订`:'通过');row.append(result);
+      }
+      feed.append(row);this.streamRows.set(log.key,{node:row,log,born:this.clock+Math.min(added*35,105),seen:false,dissolved:false});added++;
+    }
+    if(animated&&added){
+      // Keep every retained row at its on-screen position. A continuous spring
+      // absorbs new batches instead of cancelling/restarting a feed animation.
+      const distance=retained?oldTop-retained.node.getBoundingClientRect().top:Math.min(feed.getBoundingClientRect().height,viewport.getBoundingClientRect().height*.55);
+      this.streamOffset+=Math.max(0,distance);
+    }else if(!animated){this.streamOffset=0;this.streamVelocity=0;}
+    this.paintStream(0);
+  }
+  paintStream(delta){
+    const feed=this.root.querySelector('.source-feed');
+    if(this.running&&!this.reducedMotion&&delta>0){
+      const dt=delta/1000,omega=19,decay=Math.exp(-omega*dt),term=this.streamVelocity+omega*this.streamOffset;
+      this.streamVelocity=(this.streamVelocity-omega*term*dt)*decay;
+      this.streamOffset=(this.streamOffset+term*dt)*decay;
+      if(Math.abs(this.streamOffset)<.05&&Math.abs(this.streamVelocity)<.1){this.streamOffset=0;this.streamVelocity=0;}
+    }
+    feed.style.transform=this.streamOffset?`translate3d(0,${this.streamOffset.toFixed(3)}px,0)`:'';
+    const entries=[...this.streamRows.values()];
+    entries.forEach((item,index)=>{
+      const age=Math.max(0,this.clock-item.born),p=this.reducedMotion||!this.running?1:Math.min(1,age/280),eased=1-Math.pow(1-p,3);
+      item.node.style.opacity=String((.55+.45*(index+1)/Math.max(1,entries.length))*eased);
+      item.node.style.transform=p<1?`translate3d(${(1-eased)*5}px,0,0)`:'';
+      item.node.style.filter=p<1?`blur(${(1-eased)*1.6}px)`:'';
+    });
+    // Read geometry only once per frame, after the stream's transform is set.
+    // An outgoing line dissolves at the real clipping edge, never on log append.
+    if(this.running&&!this.reducedMotion){
+      const viewport=this.root.querySelector('.source-viewport').getBoundingClientRect();
+      for(const item of entries){
+        const rect=item.node.getBoundingClientRect();
+        if(rect.top>=viewport.top+4&&rect.bottom<=viewport.bottom+1)item.seen=true;
+        if(item.seen&&!item.dissolved&&rect.top<viewport.top+4){item.dissolved=true;this.dissolveLine(item.log.text);}
+      }
     }
   }
   setState({running=false,progress=0,reducedMotion=this.reducedMotion,status='idle'}={}){
     const wasRunning=this.running;this.running=running;this.status=status;this.progress=Math.min(1,Math.max(0,Number(progress)||0));this.reducedMotion=reducedMotion;
-    if(status==='idle'){this.logs=[];this.logKey='';this.paintSource(0,true);}
-    if(!running)this.feedAnimation?.pause();else this.feedAnimation?.play();
+    if(status==='idle'&&(this.logs.length||this.streamRows.size)){
+      this.logs=[];this.logKey='';this.streamPending=true;this.paintSource();
+    }
     this.root.classList.toggle('flow-paused',!running);this.root.classList.toggle('flow-reduced',reducedMotion);
+    this.root.classList.toggle('flow-idle',status==='idle');
+    if(reducedMotion||status==='cancelled'||status==='complete'){
+      if(this.streamPending)this.paintSource();this.streamOffset=0;this.streamVelocity=0;this.paintStream(0);
+    }
     if(reducedMotion||status==='cancelled'){this.particles=[];this.loops=[];this.landings=[];this.values=[...this.targets];}
     if(wasRunning!==running)this.lastTime=null;
     this.paint();this.wake();
@@ -114,9 +160,9 @@ export class WorkflowVisual {
     }
     const count=Math.min(42,pixels.length||Math.max(8,text.length));
     for(let i=0;i<count;i++){
-      const g=active[(i+this.sourceOffset)%active.length],to=this.point(g.index,(i+this.sourceOffset)%g.rows,0);if(!to)continue;
+      const g=active[i%active.length],to=this.point(g.index,i%g.rows,0);if(!to)continue;
       const pixel=pixels.length?pixels[Math.floor(i/count*pixels.length)]:{x:i/count*width,y:3+(i%3)*2};
-      const from={x:rect.left-box.left+19*scale+pixel.x,y:rect.top-box.top+pixel.y-2};
+      const from={x:rect.left-box.left+6*scale+pixel.x,y:rect.top-box.top+pixel.y-2};
       this.particles.push({from,to:{...to},at:this.clock+i*6,duration:650+(i*43)%390,g:g.category,size:1.2+(i%3)*.45,incoming:true,dissolve:true});
     }
   }
@@ -148,8 +194,8 @@ export class WorkflowVisual {
   frame(time){
     this.frameId=0;if(!this.alive)return;
     const moving=this.running||this.status==='complete';if(!moving||this.reducedMotion){this.lastTime=null;return;}
-    this.clock+=this.lastTime===null?0:Math.min(60,time-this.lastTime);this.lastTime=time;
-    if(this.running){for(let g=0;g<this.groups.length;g++)if(this.groups[g].ids.length&&this.clock>=this.next[g])this.spawn(g);this.paintSource(Math.floor((this.clock-(this.sourceStart||0))/580));}
+    const delta=this.lastTime===null?0:Math.min(60,time-this.lastTime);this.clock+=delta;this.lastTime=time;
+    if(this.running){for(let g=0;g<this.groups.length;g++)if(this.groups[g].ids.length&&this.clock>=this.next[g])this.spawn(g);if(this.clock-this.lastStreamFlush>=220)this.paintSource();this.paintStream(delta);}
     for(const l of this.landings.filter(l=>l.at<=this.clock)){this.values[l.g]=Math.max(this.values[l.g],l.value);this.flash(l.g);}
     this.landings=this.landings.filter(l=>l.at>this.clock);
     for(const p of this.particles)if(!p.incoming&&this.clock>=p.at+p.duration&&!p.landed){p.landed=true;this.flash(p.g);}
@@ -158,5 +204,5 @@ export class WorkflowVisual {
     this.paint();this.wake();
   }
   flash(g){const fill=this.fills[g];fill.classList.remove('landed');void fill.offsetWidth;fill.classList.add('landed');}
-  destroy(){this.feedAnimation?.cancel();this.alive=false;cancelAnimationFrame(this.frameId);this.observer.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);}
+  destroy(){this.streamRows.clear();this.alive=false;cancelAnimationFrame(this.frameId);this.observer.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);}
 }
