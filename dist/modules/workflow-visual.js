@@ -45,7 +45,7 @@ export class WorkflowVisual {
     this.sourceOffset=-1;this.paintSource(0);
   }
   setLogs(logs){
-    const next=logs.slice(-5).map(l=>({text:`${l.time} ${l.level} ${l.text}`,level:l.level}));
+    const next=logs.filter(l=>l.level==='scan').slice(-7).map(l=>({text:`${l.time} ${l.level} ${l.text}`,level:l.level}));
     const key=JSON.stringify(next);if(key===this.logKey)return;this.logKey=key;this.logs=next;
     this.paintSource(Math.max(0,this.sourceOffset||0),true);
   }
@@ -55,7 +55,7 @@ export class WorkflowVisual {
     this.sourceOffset=offset;
     const feed=this.root.querySelector('.source-feed');feed.replaceChildren();
     for(let i=0;i<7;i++){
-      const log=null;
+      const log=this.logs.length?this.logs[(offset+i)%this.logs.length]:null;
       const line=log?{text:log.text,line:'›'}:this.sourceLines[(offset+i)%Math.max(1,this.sourceLines.length)];if(!line)continue;
       const row=document.createElement('div');row.className='source-row'+(log?' log-row':'')+(i===3?' reading':'');row.title=line.text;
       const num=document.createElement('span');num.textContent=log?'›':String(line.line).padStart(2,'0');
