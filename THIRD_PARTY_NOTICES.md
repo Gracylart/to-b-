@@ -170,3 +170,33 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 - pdf-lib and @pdf-lib/fontkit: MIT; license files included with their packaged modules.
 - pdfjs-dist: Apache-2.0; license included with packaged module.
 - Noto Sans SC: SIL Open Font License 1.1. Copyright and full license: dist/assets/pdf/OFL.txt. Source: https://github.com/google/fonts/tree/main/ofl/notosanssc .
+
+## Quiet Blue 皮肤参考
+
+`dist/skins/claude.css` 的缓动参数与顶部非线性渐隐遮罩参考并改编自 [Caho1 / open-claude-ui](https://github.com/Caho1/open-claude-ui)，参考版本 `c1f923ae0051a871941b98a0e2e3183a545e6a85`。该项目为社区开源实现，非 Anthropic 官方组件库。本应用保留自己的蓝色系、审核业务结构及原生 JavaScript 实现；未包含 Claude 商标、字体、声音或专有二进制资源。
+
+对应源文件：`code-examples/cds-theme.css`、`code-examples/ClaudeMotionPresets.ts`、`code-examples/ScrollFadeContainer.tsx`。许可如下：
+
+```text
+MIT License
+
+Copyright (c) 2026 Caho1
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

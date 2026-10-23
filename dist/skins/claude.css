@@ -1,0 +1,295 @@
+/*
+ * Quiet Blue — Review Desk's compact interpretation of open-claude-ui.
+ * Surface hierarchy / easing / nonlinear scroll fade adapted from Caho1,
+ * open-claude-ui @ c1f923ae0051a871941b98a0e2e3183a545e6a85 (MIT).
+ * See THIRD_PARTY_NOTICES.md. Colors, layout and component treatments are local.
+ * This layer deliberately leaves scan timing, counters and motion to the engine.
+ */
+:root[data-skin="claude"] {
+  color-scheme: dark;
+  --ink-surface-0: #1b232c;
+  --ink-surface-1: #222d38;
+  --ink-surface-2: #293541;
+  --ink-surface-3: #313e4a;
+  --ink-hover: #c5d4e30d;
+  --ink-selected: #91bce61b;
+  --ink-focus: #a6d2ff;
+  --ink-ease: cubic-bezier(.16, 1, .3, 1);
+  --ink-enter: cubic-bezier(.22, 1, .36, 1);
+  --text: #ecebe6;
+  --muted: #b4c0cc;
+  --faint: #9cabb9;
+  --mint: #a7ccef;
+  --blue: #8bbdea;
+  --purple: #a7b5df;
+  --green: #8bc9d3;
+  --yellow: #d8c398;
+  --red: #e3a2a9;
+  --line: #dce5ed16;
+  --border: #dce5ed2b;
+  --control: #dce5ed08;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Roboto Mono", "PingFang SC", monospace;
+}
+
+html[data-skin="claude"] body {
+  background: radial-gradient(ellipse at 18% 12%, #384958, transparent 63%), #18232f;
+  -webkit-font-smoothing: antialiased;
+}
+html[data-skin="claude"].desktop body { background: transparent; }
+html[data-skin="claude"] .glass-shell {
+  border: 1px solid #b9cad933;
+  border-radius: 16px;
+  background: var(--ink-surface-1);
+  box-shadow: 0 18px 48px #070d1538;
+  backdrop-filter: blur(24px) saturate(105%);
+}
+html[data-skin="claude"].desktop .glass-shell { background: #222d38f5; box-shadow: none; }
+html[data-skin="claude"] .glass-shell::after { display: none; }
+html[data-skin="claude"] .glass-shell::before { opacity: .55; }
+html[data-skin="claude"] .shell-header {
+  padding: .8rem 1.15rem .85rem;
+  gap: .65rem;
+}
+html[data-skin="claude"] .view-tabs {
+  height: 2.75rem;
+  padding: 3px;
+  gap: 1px;
+  border: 0;
+  border-radius: 9px;
+  background: #141f2a63;
+}
+html[data-skin="claude"] .view-tabs button {
+  font: 550 max(11px, .916667rem)/2.1rem var(--sans);
+  letter-spacing: .035em;
+  padding: 0 .7rem;
+  border-radius: 6px;
+  border-color: transparent;
+  color: var(--muted);
+}
+html[data-skin="claude"] .view-tabs button[aria-current="page"] {
+  background: var(--ink-surface-3);
+  color: var(--text);
+  box-shadow: 0 1px 3px #10172033;
+}
+html[data-skin="claude"] .icon-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-color: transparent;
+  background: transparent;
+  border-radius: 7px;
+  color: var(--muted);
+}
+html[data-skin="claude"] :is(.icon-button, .project-switch):hover {
+  background: var(--ink-hover);
+  color: var(--text);
+}
+html[data-skin="claude"] .pin-button { width: 2rem; }
+html[data-skin="claude"] .pin-button[aria-pressed="true"] { color: var(--blue); background: var(--ink-selected); }
+html[data-skin="claude"] .view { padding-inline: 1.2rem; animation: ink-view-enter 180ms var(--ink-enter) both; }
+html[data-skin="claude"] .view section + section { margin-top: 1rem; }
+html[data-skin="claude"] :is(.section-head h2, .rule-config-link, .material-section > summary, .project-members summary) {
+  font-family: var(--sans);
+  font-size: max(12px, 1rem);
+  font-weight: 550;
+  letter-spacing: .005em;
+}
+html[data-skin="claude"] :is(.section-link, .text-button, .tiny, .small, .meta, .section-head .meta, .week-nav button, .legend, .heat-months, .member-toggle) {
+  font-family: var(--sans);
+  font-size: max(11px, .916667rem);
+  letter-spacing: 0;
+}
+html[data-skin="claude"] :is(.section-link, .text-button, .meta-select):hover { color: var(--text); }
+html[data-skin="claude"] :is(button, summary, input, select, textarea) {
+  transition: background-color 140ms var(--ink-ease), border-color 140ms var(--ink-ease), color 140ms var(--ink-ease), box-shadow 140ms var(--ink-ease), transform 120ms var(--ink-ease);
+}
+html[data-skin="claude"] :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ink-focus);
+  outline-offset: 2px;
+}
+html[data-skin="claude"] :is(.button, .icon-button, .project-switch):active:not(:disabled) { transform: scale(.98); }
+html[data-skin="claude"] .button {
+  min-height: 2.65rem;
+  padding: 0 .9rem;
+  font: 500 max(11px, .95rem)/1.3 var(--sans);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--control);
+  color: var(--text);
+  box-shadow: none;
+}
+html[data-skin="claude"] .button:hover { background: var(--ink-hover); border-color: #dce5ed40; }
+html[data-skin="claude"] .button.primary {
+  background: #91bce6;
+  border-color: transparent;
+  color: #172a3c;
+  font-weight: 600;
+}
+html[data-skin="claude"] .button.primary:hover { background: #a8ccef; }
+html[data-skin="claude"] .button.danger { color: var(--red); }
+html[data-skin="claude"] button:disabled { opacity: .45; }
+html[data-skin="claude"] .button.inline { min-height: 2rem; }
+html[data-skin="claude"] .rule { margin-block: .85rem; }
+
+/* TOTAL: a quiet summary, then activity and project planning at equal rank. */
+html[data-skin="claude"] .home-intro {
+  text-align: left;
+  font: 600 1.35rem/1.5 var(--sans);
+  margin: .4rem 0 1.05rem;
+  letter-spacing: -.02em;
+}
+html[data-skin="claude"] .metrics { gap: .5rem; margin-bottom: 1.1rem; }
+html[data-skin="claude"] .metric { text-align: left; }
+html[data-skin="claude"] .metric dt { font-size: max(11px, .916667rem); color: var(--muted); margin-bottom: .4rem; }
+html[data-skin="claude"] .metric dd { font: 550 1.4rem/1.15 var(--sans); color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+html[data-skin="claude"] .heatmap { padding-inline: 0; gap: .23rem; }
+html[data-skin="claude"] .heat-cell { border-radius: 2px; background: var(--blue); aspect-ratio: 1; height: auto; }
+html[data-skin="claude"] .heat-months { padding-inline: 0; }
+html[data-skin="claude"] .project-summary { min-height: 2.65rem; padding: .4rem .4rem; border-radius: 6px; font: 550 1rem var(--sans); }
+html[data-skin="claude"] .project-summary:hover { background: var(--ink-hover); }
+html[data-skin="claude"] .project-summary .project-stage { color: var(--muted); font: 400 max(11px, .916667rem) var(--sans); }
+html[data-skin="claude"] .project-docs { padding: .2rem .4rem .55rem 1.7rem; gap: .25rem; }
+html[data-skin="claude"] .mini-doc { min-height: 1.8rem; font: max(11px, .916667rem)/1.45 var(--sans); border-radius: 4px; }
+html[data-skin="claude"] .mini-doc .doc-code { font: max(11px, .916667rem)/1.4 var(--mono); color: var(--faint); }
+html[data-skin="claude"] .gantt-label { font: 550 max(11px, .916667rem) var(--sans); }
+html[data-skin="claude"] :is(.gantt-axis, .gantt-bar) { font: max(11px, .916667rem) var(--sans); }
+html[data-skin="claude"] .gantt-row { height: 2.6rem; }
+html[data-skin="claude"] .gantt-bar { border: 0; border-radius: 4px; background: color-mix(in srgb, var(--bar) 18%, transparent); height: 1.6rem; padding-inline: .45rem; }
+html[data-skin="claude"] .gantt-bar:hover { filter: none; background: color-mix(in srgb, var(--bar) 28%, transparent); }
+html[data-skin="claude"] .home-actions { margin-top: 1rem; gap: .6rem; }
+
+/* PROJECT: human names use the UI face; only material identifiers are mono. */
+html[data-skin="claude"] .project-heading { margin: .6rem 0 1rem; }
+html[data-skin="claude"] .project-heading h1 { font: 550 2rem/1.3 var(--sans); letter-spacing: -.035em; }
+html[data-skin="claude"] .project-switch { width: 2.1rem; border-radius: 6px; }
+html[data-skin="claude"] .project-members { margin-bottom: .85rem; border-bottom: 1px solid var(--line); padding-bottom: .8rem; }
+html[data-skin="claude"] .project-members .members.role-members { gap: .6rem .8rem; }
+html[data-skin="claude"] :is(.team-role, .role-name, .person-chip) { font: max(11px, .916667rem)/1.6 var(--sans); }
+html[data-skin="claude"] .person-chip { background: #c8d8e50a; border: 0; padding: .05rem .4rem; border-radius: 4px; color: var(--text); }
+html[data-skin="claude"] .project-meta { padding-block: .25rem; gap: .7rem 1rem; }
+html[data-skin="claude"] .project-meta dt { color: var(--faint); }
+html[data-skin="claude"] .project-meta dd { color: var(--text); font-family: var(--sans); }
+html[data-skin="claude"] .project-stages { margin: 1.2rem 0; }
+html[data-skin="claude"] .project-stages button { font: max(11px, .916667rem) var(--sans); }
+html[data-skin="claude"] .project-stages button.current i { box-shadow: none; background: var(--blue); }
+html[data-skin="claude"] .material-section > summary { padding-block: .75rem; }
+html[data-skin="claude"] .material-section > summary span { font-size: max(11px, .916667rem); font-weight: 400; }
+html[data-skin="claude"] .bom-tools button { font: max(11px, .916667rem) var(--sans); }
+html[data-skin="claude"] .bom-row { border-radius: 6px; }
+html[data-skin="claude"] .bom-name { font: 1rem/1.5 var(--sans); }
+html[data-skin="claude"] .bom-row .bom-code { font: max(11px, .916667rem)/1.5 var(--mono); }
+html[data-skin="claude"] .bom-row .bom-arrow { color: var(--faint); opacity: .7; }
+html[data-skin="claude"] :is(.bom-row, .mini-doc)[data-copy-code]:hover { background: var(--ink-hover); }
+html[data-skin="claude"] .table { font-family: var(--sans); }
+html[data-skin="claude"] :is(.table th, .table td) { font-size: max(11px, .916667rem); }
+html[data-skin="claude"] .table th { padding-bottom: .55rem; }
+html[data-skin="claude"] .table td:first-child { color: var(--text); }
+html[data-skin="claude"] .table tr + tr { border-top: 1px solid #dce5ed08; }
+html[data-skin="claude"] .delivery-line { font-size: max(11px, .916667rem); margin-block: .8rem; }
+html[data-skin="claude"] .delivery-line strong { font: 500 max(11px, .916667rem) var(--sans); }
+
+/* REVIEW: the stream is a compact instrument, not a nested terminal window. */
+html[data-skin="claude"] .review-project { margin-top: .3rem; }
+html[data-skin="claude"] .review-project .field { margin-bottom: 0; }
+html[data-skin="claude"] .status-pill { border: 0; border-radius: 5px; background: var(--ink-selected); color: var(--blue); padding: .4rem .55rem; font: 500 max(11px, .916667rem) var(--sans); letter-spacing: 0; }
+html[data-skin="claude"] .status-pill[data-status="paused"] { color: var(--yellow); background: #d8c39812; }
+html[data-skin="claude"] .review-summary { border-bottom-color: var(--line); }
+html[data-skin="claude"] .review-summary :is(strong, .review-number) { font-family: var(--sans); letter-spacing: -.025em; }
+html[data-skin="claude"] .review-summary :is(small, .eyebrow), html[data-skin="claude"] .review-summary > div > span { font-family: var(--sans); font-size: max(11px, .916667rem); color: var(--faint); }
+html[data-skin="claude"] .source-panel { border: 1px solid #dce5ed15; border-radius: 8px; background: #18232d59; box-shadow: none; }
+html[data-skin="claude"] .source-heading { height: 2rem; padding-inline: .65rem; border-bottom: 1px solid #dce5ed0d; background: #c5d4e303; }
+html[data-skin="claude"] .source-heading .source-name { font: 500 max(11px, .9rem) var(--sans); color: var(--muted); }
+html[data-skin="claude"] .source-heading > span:last-child { font: max(11px, .9rem) var(--mono); color: var(--faint); }
+html[data-skin="claude"] .source-viewport {
+  --stream-fade: 1.6rem;
+  /* Nonlinear alpha stops adapted from open-claude-ui ScrollFadeContainer. */
+  mask-image: linear-gradient(to bottom, transparent, #0000000d calc(var(--stream-fade) * .15), #00000026 calc(var(--stream-fade) * .3), #0000004d calc(var(--stream-fade) * .45), #00000080 calc(var(--stream-fade) * .6), #000000b3 calc(var(--stream-fade) * .75), #000000d9 calc(var(--stream-fade) * .87), #000 var(--stream-fade), #000);
+}
+html[data-skin="claude"] .source-row { font-family: var(--mono); }
+html[data-skin="claude"] .source-code { color: #bed3e5; }
+html[data-skin="claude"] .review-view .source-row .source-result { font-family: var(--sans); font-size: max(11px, .85rem); color: var(--faint); }
+html[data-skin="claude"] .review-view .source-row .source-result[aria-label$="待修订"] { color: var(--yellow); }
+html[data-skin="claude"] .agent-cell { border-radius: 2px; }
+html[data-skin="claude"] .agent-cell.active { background: #d9e9f5; box-shadow: 0 0 .4rem #b2d8f94a; }
+html[data-skin="claude"] .agent-cell.trail { box-shadow: none; }
+html[data-skin="claude"] .agent-label { font: max(11px, .916667rem)/1.4 var(--sans); }
+html[data-skin="claude"] .rule-bar { font: max(11px, .916667rem)/1.5 var(--sans); }
+html[data-skin="claude"] .rule-count { font: max(11px, .916667rem) var(--mono); }
+html[data-skin="claude"] .bar-track { height: .32rem; background: #c5d4e314; }
+html[data-skin="claude"] .bar-fill { box-shadow: none; }
+html[data-skin="claude"] .progress-meta { font: max(11px, .916667rem)/1.5 var(--sans); }
+html[data-skin="claude"] .progress-track { height: .25rem; background: #c5d4e312; }
+html[data-skin="claude"] .progress-fill { box-shadow: none; }
+
+/* Revision + forms use the same quiet surfaces and a single clear action. */
+html[data-skin="claude"] .revision-view { padding-top: .5rem; }
+html[data-skin="claude"] .revision-view h1 { font: 600 1.4rem/1.5 var(--sans); letter-spacing: -.02em; }
+html[data-skin="claude"] :is(.model-config, .revision-document, .revision-history) { padding-block: .9rem; }
+html[data-skin="claude"] :is(.model-config, .revision-findings) summary { min-height: 2rem; margin-bottom: .4rem; font-size: 1rem; }
+html[data-skin="claude"] .model-config[open] summary { margin-bottom: .85rem; }
+html[data-skin="claude"] .revision-note { font-size: max(11px, .916667rem); }
+html[data-skin="claude"] .revision-status { color: var(--blue); font-size: max(11px, .916667rem); }
+html[data-skin="claude"] .revision-run { min-height: 3rem; }
+html[data-skin="claude"] .revision-record { background: #c8d8e506; border: 1px solid var(--line); border-radius: 8px; padding: .85rem; }
+html[data-skin="claude"] .revision-record:hover { background: var(--ink-hover); }
+html[data-skin="claude"] :is(.revision-record span, .revision-record small, .report-item, .empty-state) { font-size: max(11px, .916667rem); line-height: 1.6; }
+html[data-skin="claude"] .empty-state { color: var(--faint); }
+html[data-skin="claude"] :is(.field input, .field select, .field textarea, .member-field input, .plan-edit-row input, .list-toolbar input) {
+  background: #19232d5c;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: none;
+  color: var(--text);
+  font: 1rem/1.45 var(--sans);
+  min-height: 2.75rem;
+}
+html[data-skin="claude"] :is(.field label, .field small, .setting-row small, .settings-note, .field-hint) { color: var(--muted); font-size: max(11px, .916667rem); }
+html[data-skin="claude"] select option { color: var(--text); background: var(--ink-surface-2); }
+html[data-skin="claude"] :is(input, textarea)::placeholder { color: var(--faint); }
+html[data-skin="claude"] dialog {
+  background: #293541ee;
+  border: 1px solid #c4d3e138;
+  border-radius: 16px;
+  box-shadow: 0 18px 60px #0a121a75;
+  backdrop-filter: blur(26px) saturate(115%);
+  -webkit-backdrop-filter: blur(26px) saturate(115%);
+  padding: 1.4rem;
+}
+html[data-skin="claude"] dialog[open] { animation: ink-dialog-enter 240ms var(--ink-enter) both; }
+html[data-skin="claude"] dialog::backdrop { background: #0a14203d; backdrop-filter: blur(14px) saturate(90%); -webkit-backdrop-filter: blur(14px) saturate(90%); }
+html[data-skin="claude"] .dialog-head { border: 0; margin-bottom: 1.2rem; padding-bottom: 0; }
+html[data-skin="claude"] .dialog-head h2 { font: 600 1.3rem/1.5 var(--sans); color: var(--text); letter-spacing: -.02em; }
+html[data-skin="claude"] .dialog-head .icon-button { border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+html[data-skin="claude"] .dialog-head .icon-button:hover { background: var(--ink-hover); color: var(--text); }
+html[data-skin="claude"] dialog .field label { color: var(--muted); }
+html[data-skin="claude"] dialog .field :is(input, select, textarea):focus, html[data-skin="claude"] dialog .member-field input:focus { background: #19232d80; border-color: var(--ink-focus); outline-color: var(--ink-focus); box-shadow: none; }
+html[data-skin="claude"] dialog .button { min-height: 3rem; border-radius: 7px; }
+html[data-skin="claude"] dialog .button.primary { background: #91bce6; color: #172a3c; box-shadow: none; border-color: transparent; }
+html[data-skin="claude"] dialog .button.primary:hover { background: #a8ccef; }
+html[data-skin="claude"] .toast { background: var(--ink-surface-3); border: 1px solid var(--border); box-shadow: 0 6px 20px #0a14204d; }
+html[data-skin="claude"] .plan-edit-row { min-height: 3rem; }
+html[data-skin="claude"] .plan-edit-row input { min-height: 2.55rem; padding-inline: .2rem; font-size: max(11px, .85rem); }
+
+@keyframes ink-view-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ink-dialog-enter { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+@media (max-width: 384px) {
+  html[data-skin="claude"] .shell-header { padding-inline: 1rem; gap: .35rem; }
+  html[data-skin="claude"] .view-tabs button { padding-inline: .58rem; }
+  html[data-skin="claude"] .header-tools { gap: .15rem; }
+  html[data-skin="claude"] .view { padding-inline: 1rem; }
+  html[data-skin="claude"] .project-meta { gap: .65rem .65rem; }
+  html[data-skin="claude"] .flow-workspace { gap: .6rem; }
+  html[data-skin="claude"] .week-nav { gap: .1rem; }
+  html[data-skin="claude"] .revision-view > .section-head { flex-wrap: wrap; gap: .4rem; }
+  html[data-skin="claude"] .revision-view > .section-head h1 { flex: 1; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-skin="claude"] .glass-shell, html[data-skin="claude"].desktop .glass-shell { background: var(--ink-surface-1); backdrop-filter: none; }
+  html[data-skin="claude"] dialog { background: var(--ink-surface-2); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  html[data-skin="claude"] dialog::backdrop { background: #101b2be8; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin="claude"] *, html[data-skin="claude"] *::before, html[data-skin="claude"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  html[data-skin="claude"] :is(.button, .icon-button, .project-switch):active:not(:disabled) { transform: none; }
+}
