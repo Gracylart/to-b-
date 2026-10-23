@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, screen, shell, session, dialog } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, screen, shell, session, dialog, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const {
@@ -250,6 +250,10 @@ function trustedSender(event) {
 }
 
 function installIPC() {
+  ipcMain.handle('review:copy-code', async (event, code) => {
+    if(!trustedSender(event)||typeof code!=='string'||!/^\d{1,100}$/.test(code))return false;
+    await clipboard.writeText(code);return true;
+  });
   ipcMain.handle('review:pdf', async (event, action, payload={}) => {
     if (!trustedSender(event)) throw Error('Untrusted sender');
     if (!pdfWorkspace) pdfWorkspace = require('./pdf-workspace.cjs').createWorkspace(app.getPath('userData'));

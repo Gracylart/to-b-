@@ -377,7 +377,7 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
     clearTimeout() {},
   }, { filename: 'desktop/preload.cjs' });
   assert.deepEqual(Object.keys(exposed).sort(), [
-    'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
+    'copyCode', 'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
   ]);
   assert.ok(Object.isFrozen(exposed));
   exposed.updateStatus({ state: 'invalid', progress: 2, issues: 0 });

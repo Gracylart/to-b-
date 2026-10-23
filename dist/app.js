@@ -292,8 +292,8 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.copyCode!==undefined){
     const code=b.dataset.copyCode;
-    if(!/^\d+$/.test(code)){notify('此物料尚无数字料号');return;}
-    navigator.clipboard.writeText(code).then(()=>notify('料号已复制：'+code)).catch(()=>notify('复制失败，请重试'));
+    if(!/^\d+$/.test(code))return;
+    (desktop?.copyCode?desktop.copyCode(code):navigator.clipboard.writeText(code)).catch(()=>{});
     return;
   }
   if(b.dataset.view){setView(b.dataset.view);return;}

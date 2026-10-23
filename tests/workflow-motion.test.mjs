@@ -39,7 +39,7 @@ test('reduced motion settles queued checks without particles or request loops',(
 });
 test('code stream never exposes document content and bounds rendered rows',()=>{
   const {visual:v,single}=fixture();v.setSource({id:'test',name:'copy',text:'<img src=x onerror=alert(1)>\nhello'},'running');
-  assert.equal(single['.source-feed'].children.length,7);assert.equal(single['.source-feed'].children[0].children[1].textContent,'const rules = loadRules();');v.destroy();
+  assert.equal(single['.source-feed'].children.length,0);v.setState({running:true,status:'running'});v.setLogs([{time:'00:01',level:'scan',text:'check("file", "units")'}]);assert.equal(single['.source-feed'].children.length,1);v.paintSource(40);assert.equal(single['.source-feed'].children.length,1);v.destroy();
 });
 
 test('disabled categories retain equal grids but never emit',()=>{
@@ -52,7 +52,7 @@ test('file content changes per-rule cadence and source text fragments at the top
   const groups=ruleGroups(),plain={id:'a',name:'a',text:'简单的介绍文案'},numeric={id:'b',name:'b',text:'65W 3000mAh 100V 50Hz 21kg 45mm TODO'};
   assert.notDeepEqual(fileCadence(plain,groups[2]),fileCadence(numeric,groups[2]));
   assert.ok(fileCadence(numeric,groups[2]).burst>fileCadence(plain,groups[2]).burst);
-  const {visual:v}=fixture();v.setSource(numeric);v.setState({running:true,status:'running'});v.paintSource(1);
+  const {visual:v}=fixture();v.setSource(numeric);v.setState({running:true,status:'running'});v.setLogs(Array.from({length:12},(_,i)=>({time:'00:01',level:'scan',text:'check '+i})));v.setLogs(Array.from({length:12},(_,i)=>({time:'00:02',level:'scan',text:'check '+(i+1)})));
   const pieces=v.particles.filter(p=>p.dissolve);assert.ok(pieces.length>=8);assert.ok(pieces.every(p=>p.incoming));
   const old=v.profiles;v.setSource(plain);assert.notDeepEqual(v.profiles,old);v.destroy();
 });
@@ -71,4 +71,4 @@ test('each bar and its landing destination use its own completion total',()=>{
   v.setChecks([7,14,14,21],[7,14,14,21]);assert.ok(v.fills.every(fill=>fill.style.width==='100%'));v.destroy();
 });
 
-test('raw logs cannot replace the scrolling code with document text',()=>{const {visual:v,single}=fixture();v.setSource({id:'x',text:'private source text'});v.setLogs([{time:'00:00',level:'info',text:'<script>private log</script>'}]);const rows=single['.source-feed'].children;assert.equal(rows.length,7);assert.ok(rows.every(r=>!r.children[1].textContent.includes('private')));v.destroy();});
+test('raw logs cannot replace the scrolling code with document text',()=>{const {visual:v,single}=fixture();v.setSource({id:'x',text:'private source text'});v.setLogs([{time:'00:00',level:'info',text:'<script>private log</script>'}]);const rows=single['.source-feed'].children;assert.equal(rows.length,0);assert.ok(rows.every(r=>!r.children[1].textContent.includes('private')));v.destroy();});

@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Only specific, validated messages cross the isolated renderer boundary.
 contextBridge.exposeInMainWorld('reviewDesktop', Object.freeze({
   isDesktop: true,
+  copyCode(code){return ipcRenderer.invoke('review:copy-code',code);},
   pdf(action,payload={}) {
     if(!['list','sample','import','report','revise','open','folder'].includes(action))return Promise.reject(new Error('Unsupported PDF action'));
     return ipcRenderer.invoke('review:pdf',action,payload);

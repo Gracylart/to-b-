@@ -32,39 +32,37 @@ export class WorkflowVisual {
     this.sourceKey=key;this.sourceStart=this.clock;this.profiles=this.groups.map(g=>fileCadence(document,g));this.next=this.groups.map((g,i)=>this.clock+i*65);
     this.root.querySelector('.source-name').textContent='review.worker.ts';
     const count=this.groups.reduce((n,g)=>n+g.ids.length,0);
-    this.sourceLines=[
-      'const rules = loadRules();',
-      `// ${count} enabled checks`,
-      'for (const file of queue) {',
-      '  const ast = parse(file);',
-      '  await scan(ast, rules);',
-      '  emit("file:checked");',
-      '  progress.advance();',
-      '} // next document',
-    ].map((text,i)=>({text,line:i+1}));
+    this.sourceLines=[];
     this.sourceOffset=-1;this.paintSource(0);
   }
   setLogs(logs){
-    const next=logs.filter(l=>l.level==='scan').slice(-7).map(l=>({text:`${l.time} ${l.level} ${l.text}`,level:l.level}));
-    const key=JSON.stringify(next);if(key===this.logKey)return;this.logKey=key;this.logs=next;
-    this.paintSource(Math.max(0,this.sourceOffset||0),true);
+    const next=logs.filter(l=>l.level==='scan').slice(-12).map(l=>({text:`${l.time} ${l.text}`,level:l.level}));
+    const key=JSON.stringify(next);if(key===this.logKey)return;
+    const previous=this.logs;this.logKey=key;this.logs=next;
+    if(previous.length&&next.length&&previous[0].text!==next[0].text&&this.running&&!this.reducedMotion)this.dissolveLine(previous[0].text);
+    this.paintSource(0,true);
   }
   paintSource(offset,force=false){
-    if(offset===this.sourceOffset&&!force)return;
-    if(offset!==this.sourceOffset&&this.sourceOffset>=0&&this.running&&!this.reducedMotion)this.dissolveLine(this.sourceLines[this.sourceOffset%Math.max(1,this.sourceLines.length)]?.text||'');
-    this.sourceOffset=offset;
-    const feed=this.root.querySelector('.source-feed');feed.replaceChildren();
-    for(let i=0;i<7;i++){
-      const log=this.logs.length?this.logs[(offset+i)%this.logs.length]:null;
-      const line=log?{text:log.text,line:'›'}:this.sourceLines[(offset+i)%Math.max(1,this.sourceLines.length)];if(!line)continue;
-      const row=document.createElement('div');row.className='source-row'+(log?' log-row':'')+(i===3?' reading':'');row.title=line.text;
-      const num=document.createElement('span');num.textContent=log?'›':String(line.line).padStart(2,'0');
-      const text=document.createElement('span');text.textContent=line.text;row.append(num,text);feed.append(row);
+    if(!force&&this.renderedLogKey===this.logKey)return;
+    this.renderedLogKey=this.logKey;this.sourceOffset=0;
+    const feed=this.root.querySelector('.source-feed');
+    const oldHeight=feed.getBoundingClientRect().height;
+    feed.replaceChildren();
+    for(const log of this.logs){
+      const row=document.createElement('div');row.className='source-row log-row';row.title=log.text;
+      const num=document.createElement('span');num.textContent='';
+      const text=document.createElement('span');text.textContent=log.text;row.append(num,text);feed.append(row);
     }
-    feed.classList.remove('advance');if(this.running&&!this.reducedMotion){void feed.offsetWidth;feed.classList.add('advance');}
+    this.feedAnimation?.cancel();
+    if(this.running&&!this.reducedMotion&&feed.animate){
+      const added=Math.max(0,feed.getBoundingClientRect().height-oldHeight);
+      this.feedAnimation=feed.animate([{transform:`translateY(${Math.min(added||24,90)}px)`,opacity:.65},{transform:'translateY(0)',opacity:1}],{duration:420,easing:'cubic-bezier(.22,1,.36,1)'});
+    }
   }
   setState({running=false,progress=0,reducedMotion=this.reducedMotion,status='idle'}={}){
     const wasRunning=this.running;this.running=running;this.status=status;this.progress=Math.min(1,Math.max(0,Number(progress)||0));this.reducedMotion=reducedMotion;
+    if(status==='idle'){this.logs=[];this.logKey='';this.paintSource(0,true);}
+    if(!running)this.feedAnimation?.pause();else this.feedAnimation?.play();
     this.root.classList.toggle('flow-paused',!running);this.root.classList.toggle('flow-reduced',reducedMotion);
     if(reducedMotion||status==='cancelled'){this.particles=[];this.loops=[];this.landings=[];this.values=[...this.targets];}
     if(wasRunning!==running)this.lastTime=null;
@@ -160,5 +158,5 @@ export class WorkflowVisual {
     this.paint();this.wake();
   }
   flash(g){const fill=this.fills[g];fill.classList.remove('landed');void fill.offsetWidth;fill.classList.add('landed');}
-  destroy(){this.alive=false;cancelAnimationFrame(this.frameId);this.observer.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);}
+  destroy(){this.feedAnimation?.cancel();this.alive=false;cancelAnimationFrame(this.frameId);this.observer.disconnect();document.removeEventListener('visibilitychange',this.onVisibility);}
 }

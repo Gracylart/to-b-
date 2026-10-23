@@ -115,3 +115,6 @@ html.desktop .glass-shell::before{content:'';position:absolute;right:5px;bottom:
 
 /* Short windows scroll the entire workflow, including its controls. */
 .review-view{height:auto;min-height:100%;overflow:visible;padding-bottom:1.25rem}.review-view>*{flex-shrink:0}.review-controls{margin-top:1rem!important;padding-bottom:.5rem}.source-panel{container-type:inline-size}.source-row{font-size:clamp(.833333rem,3.5cqw,1.35rem);line-height:1.6}.source-row>span:last-child{white-space:pre-wrap;overflow-wrap:anywhere}.source-viewport{overflow:hidden}.source-feed{width:100%}.revision-view{padding-bottom:1.5rem}
+
+/* Stream rows own their wrapped height; only new scan events move the feed. */
+.source-viewport{display:flex;flex-direction:column;justify-content:flex-end}.source-feed{flex:none;animation:none!important;will-change:transform}.source-row{height:auto;min-height:1.6em;flex:none;align-items:flex-start;line-height:1.6;padding:.2em 0}.source-row>span:last-child{display:block;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:inherit}.source-scan{display:none}.source-row.reading{color:inherit}
