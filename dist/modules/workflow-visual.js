@@ -20,6 +20,12 @@ export class WorkflowVisual {
     this.canvas.width=box.width*dpr;this.canvas.height=box.height*dpr;this.ctx?.setTransform(dpr,0,0,dpr,0,0);
     if(this.width!==box.width||this.height!==box.height){this.particles=[];this.streamOffset=0;this.streamVelocity=0;const feed=this.root.querySelector('.source-feed');if(feed)feed.style.transform='';}
     this.width=box.width;this.height=box.height;
+    // Canvas pixels must use the same material-aware inks as the CSS cells.
+    const theme=typeof getComputedStyle==='function'?getComputedStyle(this.root):null;
+    const token=name=>theme?.getPropertyValue?.(name)?.trim()||'';
+    this.palette=PALETTE.map((color,i)=>token(`--flow-color-${i}`)||color);
+    this.particleInk=token('--flow-particle-ink')||'#eaf5ff';
+    this.particleGlow=token('--flow-particle-glow')===''?9:Math.max(0,Math.min(12,Number(token('--flow-particle-glow'))||0));
     const relative=n=>{const r=n.getBoundingClientRect();return{x:r.left-box.left+r.width/2,y:r.top-box.top+r.height/2,width:r.width};};
     this.points=this.nodes.map(relative);
     this.cellIndices=this.groups.map(g=>this.nodes.map((n,i)=>({n,i})).filter(({n})=>Number(n.dataset?.group)===g.index).map(({i})=>i));this.destinations=this.tracks.map(n=>{const r=relative(n);return{...r,x:r.x-r.width/2};});
@@ -182,7 +188,7 @@ export class WorkflowVisual {
       const t=(this.clock-p.at)/p.duration;if(t<0||t>1)continue;
       for(let trail=5;trail>=0;trail--){const v=ease(t-trail*.037),bend=p.incoming?-12:(p.g-1.5)*11;
         const x=p.from.x+(p.to.x-p.from.x)*v+Math.sin(Math.PI*v)*bend,y=p.from.y+(p.to.y-p.from.y)*v;
-        ctx.globalAlpha=(trail?.22-trail*.029:1)*(p.dissolve?Math.min(1,t*8+.2):1);ctx.fillStyle=trail?PALETTE[p.g]:'#eaf5ff';ctx.shadowColor=PALETTE[p.g];ctx.shadowBlur=trail?0:9;
+        ctx.globalAlpha=(trail?.22-trail*.029:1)*(p.dissolve?Math.min(1,t*8+.2):1);ctx.fillStyle=trail?this.palette[p.g]:this.particleInk;ctx.shadowColor=this.palette[p.g];ctx.shadowBlur=trail?0:this.particleGlow;
         const size=trail?Math.max(1,p.size-1.5):p.size;ctx.fillRect(x-size/2,y-size/2,size,size);
       }ctx.shadowBlur=0;ctx.globalAlpha=1;
     }
