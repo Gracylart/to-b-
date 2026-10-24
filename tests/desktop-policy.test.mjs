@@ -168,6 +168,8 @@ async function mainHarness() {
   const trays = [];
   const opened = [];
   const writes = [];
+  const reads = [];
+  const appPaths = new Map([['appData', '/virtual/app-data'], ['userData', '/virtual/review-desk']]);
   let loginAtStartup = false;
 
   class MockContents extends EventEmitter {
@@ -210,7 +212,8 @@ async function mainHarness() {
     setAppUserModelId() {},
     requestSingleInstanceLock: () => true,
     whenReady: () => Promise.resolve(),
-    getPath: () => '/virtual/review-desk',
+    getPath: name => appPaths.get(name) || '/virtual/review-desk',
+    setPath: (name, value) => appPaths.set(name, value),
     getLoginItemSettings: () => ({ openAtLogin: loginAtStartup }),
     setLoginItemSettings: value => { loginAtStartup = value.openAtLogin; },
     quit() {},
@@ -228,7 +231,7 @@ async function mainHarness() {
     } },
   };
   const disk = {
-    readFileSync() { throw new Error('No saved preferences'); },
+    readFileSync(file) { reads.push(file); throw new Error('No saved preferences'); },
     mkdirSync() {},
     writeFileSync: (...args) => writes.push(args),
     renameSync() {},
@@ -252,7 +255,7 @@ async function mainHarness() {
   assert.equal(windows.length, 1, 'The main-process setup must succeed');
   const panel = windows[0];
   const trustedEvent = () => ({ sender: panel.webContents, senderFrame: panel.webContents.mainFrame });
-  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, trustedEvent };
+  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, reads, appPaths, trustedEvent };
 }
 
 test('actual IPC handlers reject unrelated senders, child frames, and missing frames', async () => {
@@ -415,4 +418,17 @@ test('saved window dimensions are bounded and restored independently', () => {
   assert.equal(bounds.width, 540);
   assert.equal(bounds.height, 650);
   assert.ok(bounds.x + bounds.width <= 1432);
+});
+
+
+test('desktop acceptance profile never reads or writes the original user data', async () => {
+  const { reads, writes, appPaths, invocations, trustedEvent } = await mainHarness();
+  const profile = appPaths.get('userData');
+  assert.notEqual(profile, '/virtual/review-desk');
+  assert.equal(path.dirname(profile), '/virtual/app-data');
+  assert.ok(reads.length > 0);
+  assert.ok(reads.every(file => file.startsWith(profile + path.sep)));
+  invocations.get('review:preferences:set')(trustedEvent(), { pinned: true });
+  assert.ok(writes.length > 0);
+  assert.ok(writes.every(([file]) => file.startsWith(profile + path.sep)));
 });

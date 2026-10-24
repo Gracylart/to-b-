@@ -8,7 +8,7 @@ const {
   isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds, sanitizeWindowSize
 } = require('./policy.cjs');
 
-const APP_NAME = '文案审核台';
+const APP_NAME = '文案审核台 · Quiet Blue';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
 let windowSize = sanitizeWindowSize();
@@ -19,7 +19,7 @@ let status = { ...INITIAL_STATUS };
 let preferences = { pinned: false, launchAtLogin: false };
 let quitting = false;
 let readyToShow = false;
-let showRequested = false;
+let showRequested = true;
 let pendingNavigation;
 let ignoreBlurUntil = 0;
 let nativeSheetDepth = 0;
@@ -28,7 +28,10 @@ let pickerTimer;
 let blurTimer;
 
 app.setName(APP_NAME);
-app.setAppUserModelId('com.gracylart.copyreviewdesk');
+app.setAppUserModelId('com.gracylart.copyreviewdesk.claude');
+const profilePath = path.join(app.getPath('appData'), APP_NAME);
+fs.mkdirSync(profilePath, { recursive: true });
+app.setPath('userData', profilePath);
 
 function preferencePath() {
   return path.join(app.getPath('userData'), 'preferences.json');
@@ -122,7 +125,7 @@ function updateTray() {
 
 function createTrayMenu() {
   return Menu.buildFromTemplate([
-    { label: '打开文案审核台', click: () => showPanel() },
+    { label: `打开${APP_NAME}`, click: () => showPanel() },
     { label: '项目总览', click: () => showPanel('home') },
     { label: '审核工作台', click: () => showPanel('review') },
     { type: 'separator' },
@@ -136,7 +139,7 @@ function createTrayMenu() {
     },
     { label: '设置', click: () => showPanel('settings') },
     { type: 'separator' },
-    { label: '退出文案审核台', accelerator: 'CommandOrControl+Q', click: () => app.quit() }
+    { label: `退出${APP_NAME}`, accelerator: 'CommandOrControl+Q', click: () => app.quit() }
   ]);
 }
 
