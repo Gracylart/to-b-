@@ -1,30 +1,54 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-skin="studio" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#343638">
+  <meta name="theme-color" content="#111214">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>文案审核台 · Review Desk</title>
+  <title>文案审核台 · Studio</title>
   <link rel="icon" href="assets/app-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="skins/apple.css">
+  <link rel="stylesheet" href="skins/studio.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <div class="preview-brand" aria-hidden="true"><span class="brand-matrix"><i></i><i></i><i></i><i></i></span> REVIEW DESK <span>文案审核台</span></div>
-  <main class="glass-shell" id="shell" aria-label="文案审核台">
-    <header class="shell-header">
-      <nav class="view-tabs" aria-label="主导航">
-        <button data-view="home" aria-current="page">TOTAL</button>
-        <button data-view="project">PROJECT</button>
-        <button data-view="review">REVIEW <span id="reviewDot" class="tab-dot" hidden></span></button>
+  <main class="studio-shell" id="shell" aria-label="文案审核台 Studio">
+    <aside class="icon-rail" aria-label="工作区导航">
+      <div class="rail-drag" aria-hidden="true"></div>
+      <div class="studio-mark" aria-label="文案审核台"><span></span><span></span><span></span><span></span></div>
+      <nav class="rail-nav view-tabs" aria-label="主导航">
+        <button data-view="home" aria-current="page" aria-label="总览" title="总览"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg></button>
+        <button data-view="project" aria-label="项目" title="项目"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2h9v10h-17v-12Z"/></svg></button>
+        <button data-view="review" aria-label="审核与修订" title="审核与修订"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6M4 21h16"/></svg><span id="reviewDot" class="tab-dot" hidden></span></button>
       </nav>
-      <div class="header-tools"><button class="icon-button pin-button" id="pinWindow" aria-label="固定窗口" aria-pressed="false" title="固定窗口">⌖</button><button class="icon-button" id="openSettings" aria-label="设置"><img src="assets/figma/a-icon-settings.svg" alt=""></button></div>
-    </header>
-    <div id="viewRoot" class="view-root"></div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="rail-spacer"></div>
+      <button class="rail-button" id="themeToggle" aria-label="切换浅色主题" title="切换主题"><svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg></button>
+      <button class="rail-button" id="openSettings" aria-label="设置" title="设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm8 3.8-2.1-1 .2-2.3-2.8-1.6-1.9 1.3L11.5 7 9.6 8.4 7.7 7.1 4.9 8.7l.2 2.3L3 12l2.1 1-.2 2.3 2.8 1.6 1.9-1.3 1.9 1.4 1.9-1.4 1.9 1.3 2.8-1.6-.2-2.3 2.1-1Z"/></svg></button>
+    </aside>
+
+    <aside class="secondary-nav" id="secondaryNav" aria-label="分组导航">
+      <header class="side-header">
+        <div><small>REVIEW DESK</small><strong>审核台</strong></div>
+        <button class="collapse-button" id="collapseSidebar" aria-label="收起二级导航" title="收起侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 7 9.5 12l5 5M5 4h14v16H5z"/></svg></button>
+      </header>
+      <nav class="side-tree" id="sideTree" aria-label="当前分组"></nav>
+      <footer class="side-footer">
+        <button id="pinWindow" aria-label="固定窗口" aria-pressed="false"><span class="pin-glyph">⌖</span><span>固定窗口</span></button>
+        <div class="privacy-note"><i></i><span>项目与密钥保留在本机</span></div>
+      </footer>
+    </aside>
+
+    <section class="workspace-pane">
+      <header class="workspace-header">
+        <button class="side-reveal" id="revealSidebar" aria-label="展开二级导航" title="展开侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 7 5 5-5 5M5 4h14v16H5z"/></svg></button>
+        <div class="breadcrumb" id="breadcrumb"><span>审核台</span><b>总览</b></div>
+        <div class="desktop-status"><i></i><span>本机工作区</span></div>
+      </header>
+      <div id="viewRoot" class="view-root"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
   </main>
-  <div class="preview-caption">A / 总览 <span>·</span> B / 项目 <span>·</span> C / 审核</div>
   <dialog id="dialog" aria-labelledby="dialogTitle"><div class="dialog-head"><h2 id="dialogTitle"></h2><button class="icon-button" id="closeDialog" aria-label="关闭弹窗">×</button></div><div id="dialogBody"></div></dialog>
   <input id="fileInput" type="file" accept=".txt,.md,.csv,.json" multiple hidden>
 </body>
