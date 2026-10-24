@@ -8,7 +8,7 @@ const {
   isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds, sanitizeWindowSize
 } = require('./policy.cjs');
 
-const APP_NAME = '文案审核台';
+const APP_NAME = '文案审核台 · Studio';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
 let windowSize = sanitizeWindowSize();
@@ -19,7 +19,7 @@ let status = { ...INITIAL_STATUS };
 let preferences = { pinned: false, launchAtLogin: false };
 let quitting = false;
 let readyToShow = false;
-let showRequested = false;
+let showRequested = true;
 let pendingNavigation;
 let ignoreBlurUntil = 0;
 let nativeSheetDepth = 0;
@@ -28,7 +28,10 @@ let pickerTimer;
 let blurTimer;
 
 app.setName(APP_NAME);
-app.setAppUserModelId('com.gracylart.copyreviewdesk');
+app.setAppUserModelId('com.gracylart.copyreviewdesk.studio');
+const profilePath = path.join(app.getPath('appData'), APP_NAME);
+fs.mkdirSync(profilePath, { recursive: true });
+app.setPath('userData', profilePath);
 
 function preferencePath() {
   return path.join(app.getPath('userData'), 'preferences.json');
@@ -122,7 +125,7 @@ function updateTray() {
 
 function createTrayMenu() {
   return Menu.buildFromTemplate([
-    { label: '打开文案审核台', click: () => showPanel() },
+    { label: `打开${APP_NAME}`, click: () => showPanel() },
     { label: '项目总览', click: () => showPanel('home') },
     { label: '审核工作台', click: () => showPanel('review') },
     { type: 'separator' },
@@ -136,7 +139,7 @@ function createTrayMenu() {
     },
     { label: '设置', click: () => showPanel('settings') },
     { type: 'separator' },
-    { label: '退出文案审核台', accelerator: 'CommandOrControl+Q', click: () => app.quit() }
+    { label: `退出${APP_NAME}`, accelerator: 'CommandOrControl+Q', click: () => app.quit() }
   ]);
 }
 
@@ -172,23 +175,24 @@ function createPanel() {
   readyToShow = false;
   panel = new BrowserWindow({
     ...windowSize,
-    minWidth: 340,
+    minWidth: 640,
     minHeight: 520,
-    maxWidth: 960,
+    maxWidth: 1800,
     maxHeight: 1200,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    vibrancy: 'hud',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 17 },
+    transparent: false,
+    backgroundColor: '#0d0e10',
+    vibrancy: 'under-window',
     visualEffectState: 'active',
     title: APP_NAME,
     hasShadow: true,
     roundedCorners: true,
     resizable: true,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
+    minimizable: true,
+    maximizable: true,
+    fullscreenable: true,
     skipTaskbar: true,
     alwaysOnTop: preferences.pinned,
     webPreferences: {
@@ -215,7 +219,6 @@ function createPanel() {
       fs.renameSync(`${destination}.tmp`, destination);
     } catch (error) { console.warn('Cannot save window size:', error.message); }
   });
-  panel.on('blur', scheduleBlurHide);
   panel.on('focus', () => clearTimeout(blurTimer));
   panel.on('sheet-begin', () => { nativeSheetDepth += 1; clearTimeout(blurTimer); });
   panel.on('sheet-end', () => {
@@ -223,7 +226,6 @@ function createPanel() {
     pickerActive = false;
     clearTimeout(pickerTimer);
     ignoreBlurUntil = Date.now() + 400;
-    scheduleBlurHide();
   });
   panel.on('close', (event) => {
     if (!quitting) { event.preventDefault(); hidePanel(); }
@@ -303,7 +305,6 @@ function installIPC() {
       pickerTimer = setTimeout(() => { pickerActive = false; }, 120000);
     } else {
       ignoreBlurUntil = Date.now() + 400;
-      scheduleBlurHide();
     }
   });
 }
