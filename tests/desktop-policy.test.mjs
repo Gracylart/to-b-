@@ -121,8 +121,8 @@ test('panel stays inside normal and small work areas, including negative display
     assert.ok(result.y >= area.y + 8);
     assert.ok(result.x + result.width <= area.x + area.width - 8);
     assert.ok(result.y + result.height <= area.y + area.height - 8);
-    assert.ok(result.width > 0 && result.width <= 365);
-    assert.ok(result.height > 0 && result.height <= 760);
+    assert.ok(result.width > 0 && result.width <= 1200);
+    assert.ok(result.height > 0 && result.height <= 800);
     assert.ok(Number.isInteger(result.x) && Number.isInteger(result.y));
   }
 });
@@ -130,7 +130,7 @@ test('panel stays inside normal and small work areas, including negative display
 test('panel centers below the tray and clamps an oversized requested window', () => {
   assert.deepEqual(
     panelBounds({ x: 600, y: 0, width: 80, height: 24 }, { x: 0, y: 24, width: 1440, height: 1000 }),
-    { x: 458, y: 32, width: 365, height: 760 },
+    { x: 40, y: 32, width: 1200, height: 800 },
   );
   assert.deepEqual(
     panelBounds({ x: 0, y: 0, width: 0, height: 0 }, { x: 100, y: 100, width: 400, height: 300 }, { width: 900, height: 1200 }),
@@ -168,6 +168,8 @@ async function mainHarness() {
   const trays = [];
   const opened = [];
   const writes = [];
+  const reads = [];
+  const appPaths = new Map([['appData', '/virtual/app-data'], ['userData', '/virtual/review-desk']]);
   let loginAtStartup = false;
 
   class MockContents extends EventEmitter {
@@ -210,7 +212,8 @@ async function mainHarness() {
     setAppUserModelId() {},
     requestSingleInstanceLock: () => true,
     whenReady: () => Promise.resolve(),
-    getPath: () => '/virtual/review-desk',
+    getPath: name => appPaths.get(name) || '/virtual/review-desk',
+    setPath: (name, value) => appPaths.set(name, value),
     getLoginItemSettings: () => ({ openAtLogin: loginAtStartup }),
     setLoginItemSettings: value => { loginAtStartup = value.openAtLogin; },
     quit() {},
@@ -228,7 +231,7 @@ async function mainHarness() {
     } },
   };
   const disk = {
-    readFileSync() { throw new Error('No saved preferences'); },
+    readFileSync(file) { reads.push(file); throw new Error('No saved preferences'); },
     mkdirSync() {},
     writeFileSync: (...args) => writes.push(args),
     renameSync() {},
@@ -252,7 +255,7 @@ async function mainHarness() {
   assert.equal(windows.length, 1, 'The main-process setup must succeed');
   const panel = windows[0];
   const trustedEvent = () => ({ sender: panel.webContents, senderFrame: panel.webContents.mainFrame });
-  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, trustedEvent };
+  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, reads, appPaths, trustedEvent };
 }
 
 test('actual IPC handlers reject unrelated senders, child frames, and missing frames', async () => {
@@ -406,13 +409,26 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
 });
 
 test('saved window dimensions are bounded and restored independently', () => {
-  assert.deepEqual(policy.sanitizeWindowSize(), { width: 365, height: 760 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: 520, height: 680 }), { width: 520, height: 680 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: Infinity, height: '800' }), { width: 365, height: 760 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: 20, height: 9000 }), { width: 340, height: 1200 });
+  assert.deepEqual(policy.sanitizeWindowSize(), { width: 1200, height: 800 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 520, height: 680 }), { width: 640, height: 680 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: Infinity, height: '800' }), { width: 1200, height: 800 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 20, height: 9000 }), { width: 640, height: 1200 });
   const desired = policy.sanitizeWindowSize({ width: 540, height: 650 });
   const bounds = panelBounds({ x: 1400, y: 0, width: 40, height: 24 }, { x: 0, y: 24, width: 1440, height: 876 }, desired);
-  assert.equal(bounds.width, 540);
+  assert.equal(bounds.width, 640);
   assert.equal(bounds.height, 650);
   assert.ok(bounds.x + bounds.width <= 1432);
+});
+
+
+test('desktop acceptance profile never reads or writes the original user data', async () => {
+  const { reads, writes, appPaths, invocations, trustedEvent } = await mainHarness();
+  const profile = appPaths.get('userData');
+  assert.notEqual(profile, '/virtual/review-desk');
+  assert.equal(path.dirname(profile), '/virtual/app-data');
+  assert.ok(reads.length > 0);
+  assert.ok(reads.every(file => file.startsWith(profile + path.sep)));
+  invocations.get('review:preferences:set')(trustedEvent(), { pinned: true });
+  assert.ok(writes.length > 0);
+  assert.ok(writes.every(([file]) => file.startsWith(profile + path.sep)));
 });
