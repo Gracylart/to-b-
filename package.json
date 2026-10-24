@@ -1,5 +1,5 @@
 {
-  "name": "copy-review-desk",
+  "name": "copy-review-desk-apple",
   "version": "1.0.11",
   "private": true,
   "description": "A glass macOS menu bar workspace for copy review and project planning.",
@@ -25,9 +25,9 @@
     "electron-builder": "26.15.3"
   },
   "build": {
-    "appId": "com.gracylart.copyreviewdesk",
-    "productName": "文案审核台",
-    "artifactName": "Copy-Review-Desk-${version}-${arch}.${ext}",
+    "appId": "com.gracylart.copyreviewdesk.apple",
+    "productName": "文案审核台 · Apple",
+    "artifactName": "Copy-Review-Desk-Apple-${version}-${arch}.${ext}",
     "directories": {
       "output": "release",
       "buildResources": "desktop/assets"
