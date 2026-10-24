@@ -26,6 +26,13 @@ html[data-skin="apple"] {
   --apple-backdrop: #253d5533;
   --apple-primary: #0865cf;
   --apple-primary-ink: #fff;
+  --flow-color-0: #2265aa;
+  --flow-color-1: #126f82;
+  --flow-color-2: #5666ac;
+  --flow-color-3: #346e9a;
+  --flow-particle-ink: #164f88;
+  --flow-particle-glow: 2;
+  --flow-active-mix: #102d52;
   --apple-ease: cubic-bezier(.22, 1, .36, 1);
   font-size: 13px;
   color-scheme: light;
@@ -230,10 +237,29 @@ html[data-skin="apple"] .source-code { color: var(--text); }
 html[data-skin="apple"] .review-view .source-row .source-result { color: var(--blue); font-family: var(--sans); font-size: .923rem; }
 html[data-skin="apple"] .source-result[data-severity="warning"],
 html[data-skin="apple"] .source-result[data-severity="error"] { color: var(--yellow); }
-html[data-skin="apple"] .agent-cell { background: color-mix(in srgb,var(--node) 55%,var(--blue)); box-shadow: none; }
-html[data-skin="apple"] .agent-cell.active { background: var(--blue); box-shadow: 0 0 5px #0865cf38; }
-html[data-skin="apple"] .agent-cell.trail { box-shadow: none; }
-html[data-skin="apple"] .flow-idle .agent-cell { opacity: .65; }
+html[data-skin="apple"] .agent-cell[data-group="0"] { --flow-cell-color: var(--flow-color-0); }
+html[data-skin="apple"] .agent-cell[data-group="1"] { --flow-cell-color: var(--flow-color-1); }
+html[data-skin="apple"] .agent-cell[data-group="2"] { --flow-cell-color: var(--flow-color-2); }
+html[data-skin="apple"] .agent-cell[data-group="3"] { --flow-cell-color: var(--flow-color-3); }
+html[data-skin="apple"] .agent-cell {
+  background: color-mix(in srgb,var(--flow-cell-color) 80%,var(--apple-surface));
+  opacity: 1;
+  box-shadow: inset 0 0 0 .65px color-mix(in srgb,var(--flow-cell-color) 28%,transparent);
+}
+html[data-skin="apple"] .agent-cell.trail {
+  background: var(--flow-cell-color);
+  opacity: 1;
+  box-shadow: none;
+}
+html[data-skin="apple"] .agent-cell.active,
+html[data-skin="apple"] .flow-paused .agent-cell.active {
+  background: color-mix(in srgb,var(--flow-cell-color) 75%,var(--flow-active-mix));
+  opacity: 1;
+  box-shadow: inset 0 0 0 .8px color-mix(in srgb,var(--flow-active-mix) 50%,transparent);
+}
+html[data-skin="apple"] .flow-idle .agent-cell,
+html[data-skin="apple"] .agent-cell.done { opacity: 1; }
+html[data-skin="apple"] .bar-fill.landed::after { background: var(--flow-particle-ink); filter: none; box-shadow: 0 0 2px var(--flow-particle-ink); }
 html[data-skin="apple"] .agent-label { color: var(--muted); font: .923rem/1.4 var(--sans); }
 html[data-skin="apple"] .agent-label>span { color: var(--muted); }
 html[data-skin="apple"] .rule-bar { font: .923rem/1.4 var(--sans); color: var(--muted); }
@@ -360,6 +386,8 @@ html[data-skin="apple"][data-theme="dark"] {
   --apple-shell: linear-gradient(155deg,#293c51f5,#192b40f5);
   --apple-rim: #e6f1ff24; --apple-dialog: #22364bef; --apple-backdrop: #08152565;
   --apple-primary: #91c6ff; --apple-primary-ink: #10263e;
+  --flow-color-0: #7ebeff; --flow-color-1: #67cce3; --flow-color-2: #9baef7; --flow-color-3: #a0d8fa;
+  --flow-particle-ink: #eaf5ff; --flow-particle-glow: 6; --flow-active-mix: #eaf5ff;
 }
 html[data-skin="apple"][data-theme="dark"] :is(dialog, input, select, textarea, .revision-view input, .revision-view select) { color-scheme: dark; }
 html[data-skin="apple"][data-theme="dark"] :is(.header-tools .icon-button img, .project-summary img) { filter: none; }

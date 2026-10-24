@@ -123,3 +123,18 @@ test('no outgoing text particles are fabricated while all rows still fit in the 
   for(let i=0;i<3;i++){v.setLogs(Array.from({length:i+1},(_,id)=>({id,time:'00:01',level:'scan',text:'check '+id})));for(let t=i*500;t<(i+1)*500;t+=16)v.frame(t);}
   assert.equal(v.particles.filter(p=>p.dissolve).length,0);v.destroy();
 });
+
+test('canvas uses contrasting theme inks instead of a fixed white particle head',()=>{
+  const previous=globalThis.getComputedStyle;
+  try{
+    const tokens={'--flow-color-0':'#2265aa','--flow-color-1':'#126f82','--flow-color-2':'#5666ac','--flow-color-3':'#346e9a','--flow-particle-ink':'#164f88','--flow-particle-glow':'2'};
+    globalThis.getComputedStyle=()=>({getPropertyValue:name=>tokens[name]||''});
+    const {visual:v}=fixture(),draws=[];
+    v.ctx.fillRect=()=>draws.push({ink:v.ctx.fillStyle,glow:v.ctx.shadowBlur});
+    v.clock=500;v.particles=[{from:{x:0,y:0},to:{x:10,y:10},g:1,at:0,duration:1000,size:3}];v.paint();
+    assert.equal(draws.at(-1).ink,'#164f88');assert.equal(draws.at(-1).glow,2);
+    assert.ok(draws.slice(0,-1).every(draw=>draw.ink==='#126f82'));
+    globalThis.getComputedStyle=()=>({getPropertyValue:()=>''});v.measure();draws.length=0;v.paint();
+    assert.equal(draws.at(-1).ink,'#eaf5ff');assert.equal(draws.at(-1).glow,9);v.destroy();
+  }finally{if(previous===undefined)delete globalThis.getComputedStyle;else globalThis.getComputedStyle=previous;}
+});
