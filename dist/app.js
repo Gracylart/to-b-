@@ -8,6 +8,8 @@ const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
 let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false;
+let uiPrefs;
+try{uiPrefs={theme:'dark',sidebarCollapsed:false,...JSON.parse(localStorage.getItem('review-studio-ui'))};}catch{uiPrefs={theme:'dark',sidebarCollapsed:false};}
 const revision=new RevisionView({desktop,notify,refresh:()=>{if(view==='revision')render();}});
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
@@ -19,6 +21,13 @@ const activeJob=()=>job&&['running','paused'].includes(job.status);
 const reducedMotion=()=>workspace.settings.reducedMotion||reducedSystem.matches;
 const icon=(name,cls='')=>`<img class="${cls}" src="assets/figma/${name}.svg" alt="">`;
 const button=(label,action,cls='')=>`<button class="button ${cls}" data-action="${action}">${label}</button>`;
+function saveUI(){localStorage.setItem('review-studio-ui',JSON.stringify(uiPrefs));}
+function applyUI(){
+  document.documentElement.dataset.theme=uiPrefs.theme==='light'?'light':'dark';
+  $('shell').classList.toggle('sidebar-collapsed',Boolean(uiPrefs.sidebarCollapsed));
+  $('themeToggle').setAttribute('aria-label',uiPrefs.theme==='light'?'切换深色主题':'切换浅色主题');
+  document.querySelector('meta[name="theme-color"]').content=uiPrefs.theme==='light'?'#edf3f9':'#0d0e10';
+}
 function notify(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3000);}
 function persist(){try{saveWorkspace(workspace);}catch{notify('本机存储空间不足，本次改动暂未保存。');}}
 function setView(next){
@@ -31,11 +40,19 @@ function selectProject(id){if(workspace.projects.some(p=>p.id===id)){workspace.s
 function setFooter(){
   $('reviewDot').hidden=!activeJob();
 }
+function renderSideTree(){
+  const p=selectedProject(),active=view==='revision'?'revision':view;
+  const item=(label,target,meta='')=>`<button class="side-item" data-view="${target}" ${active===target?'aria-current="page"':''}><span class="tree-caret">›</span><span class="tree-label">${label}</span>${meta?`<span class="tree-meta">${meta}</span>`:''}</button>`;
+  const projects=workspace.projects.map((project,index)=>`<button class="side-item" data-project-open="${esc(project.id)}" ${view==='project'&&project.id===p.id?'aria-current="page"':''}><i class="tree-dot" style="--item-color:${colors[index%colors.length]}"></i><span class="tree-label">${esc(project.code)}</span><span class="tree-meta">${project.documents.length}</span></button>`).join('');
+  $('sideTree').innerHTML=`<section class="side-group"><div class="side-group-title"><span>工作区</span></div>${item('项目总览','home')}${item('当前项目','project',p.phase)}${item('审核流程','review',activeJob()?Math.floor(job.tick/Math.max(1,job.documents.length*job.enabledRules.length)*100)+'%':'')}${item('批注与修订','revision')}</section><section class="side-group"><div class="side-group-title"><span>项目</span><button data-action="new-project" aria-label="新建项目">＋</button></div><div class="side-subtree">${projects}</div></section><section class="side-group"><div class="side-group-title"><span>资料</span></div><button class="side-item" data-action="import"><span class="tree-caret">＋</span><span class="tree-label">导入待审文案</span></button><button class="side-item" data-action="rules"><span class="tree-caret">⌁</span><span class="tree-label">审核规范</span><span class="tree-meta">${currentRules().length}</span></button></section>`;
+  const labels={home:'总览',project:p.name,review:'审核流程',revision:'批注与修订'};
+  $('breadcrumb').innerHTML=`<span>审核台</span><b>${esc(labels[view])}</b>`;
+}
 function render(){
   visual?.destroy();visual=null;
   document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===(view==='revision'?'review':view))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():view==='revision'?revision.html():reviewHTML();
-  $('viewRoot').scrollTop=0;setFooter();if(view==='revision')revision.bind();
+  $('viewRoot').scrollTop=0;setFooter();renderSideTree();if(view==='revision')revision.bind();
   if(view==='review'){bindQueueDrag();visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
 }
 function homeHTML(){
@@ -45,14 +62,14 @@ function homeHTML(){
   const activityStart=new Date(activityEnd);activityStart.setDate(activityEnd.getDate()-195);
   const daily=new Map();for(const h of realHistory){const key=new Date(h.date).toLocaleDateString('sv-SE');daily.set(key,(daily.get(key)||0)+h.total);}
   const totalDocs=realHistory.reduce((n,h)=>n+h.total,0),passed=realHistory.reduce((n,h)=>n+h.clean,0);
-  const avg=hasReal?(realHistory.reduce((n,h)=>n+h.elapsed,0)/Math.max(1,totalDocs)/1000).toFixed(1)+'s':'1.6s';
-  const metrics=[['平均耗时',avg],['通过率',hasReal?Math.round(passed/Math.max(1,totalDocs)*100)+'%':'98.9%'],['已校文档',hasReal?String(totalDocs):'93'],['审核项目',hasReal?String(new Set(realHistory.map(h=>h.projectId)).size):'24']];
+  const avg=hasReal?(realHistory.reduce((n,h)=>n+h.elapsed,0)/Math.max(1,totalDocs)/1000).toFixed(1)+'s':'—';
+  const metrics=[['平均耗时',avg],['通过率',hasReal?Math.round(passed/Math.max(1,totalDocs)*100)+'%':'—'],['已校文档',String(totalDocs)],['审核项目',hasReal?String(new Set(realHistory.map(h=>h.projectId)).size):'0']];
   return `<div class="view home-view">
     <div class="home-intro">项目总览 </div>
     <dl class="metrics">${metrics.map(([k,v])=>`<div class="metric"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <div class="rule"></div>
-    <section aria-label="审核活动"><div class="section-head"><h2>活动</h2><span class="meta">${hasReal?'本地累计':'示例累计'} ${hasReal?totalDocs:93} 文件 ${icon('a-icon-trends')}</span></div>
-      <div class="heatmap" aria-label="最近 28 周审核活动">${Array.from({length:196},(_,i)=>{const col=Math.floor(i/7),n=(i*17+col*7)%19;const day=new Date(activityStart);day.setDate(day.getDate()+i);const key=day.toLocaleDateString('sv-SE'),count=daily.get(key)||0;const intensity=hasReal?(count?Math.min(.95,.3+count/20):.05):col<14?.04+n/260:col<23?.08+n/55:.2+n/24;return `<span class="heat-cell" style="--intensity:${Math.min(.95,intensity).toFixed(2)}" title="${hasReal?key+' · '+count+' 份':'示例活动 · 第 '+(col+1)+' 周'}"></span>`;}).join('')}</div>
+    <section aria-label="审核活动"><div class="section-head"><h2>活动</h2><span class="meta">${hasReal?'本地累计 '+totalDocs+' 文件':'尚无真实审核记录'} ${icon('a-icon-trends')}</span></div>
+      <div class="heatmap" aria-label="最近 28 周审核活动">${Array.from({length:196},(_,i)=>{const day=new Date(activityStart);day.setDate(day.getDate()+i);const key=day.toLocaleDateString('sv-SE'),count=daily.get(key)||0;const intensity=count?Math.min(.95,.3+count/20):.05;return `<span class="heat-cell" style="--intensity:${intensity.toFixed(2)}" title="${key} · ${count} 份"></span>`;}).join('')}</div>
       <div class="heat-months">${Array.from({length:7},(_,i)=>{const d=new Date(activityEnd.getFullYear(),activityEnd.getMonth()-6+i,1);return `<span>${d.getMonth()+1}月</span>`;}).join('')}</div>
     </section><div class="rule"></div>
     <section><div class="section-head"><h2>过往项目</h2><button class="section-link" data-action="new-project">＋ 新项目</button></div>
@@ -149,7 +166,7 @@ function beginRun(projectId,documents,forceExample=null){
   log('init',`${documents.length} 份文案 · ${enabledRules.length} 项规范`);log('info',example?'示例演练开始，方块按检查阶段推进。':'文案已载入本机内存，不上传服务器。');
   setView('review');notifyDesktop();scheduleRun();
 }
-function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?800:65);}
+function scheduleRun(){clearInterval(jobTimer);jobTimer=setInterval(tick,job.example?260:65);}
 function tick(){
   if(job?.status!=='running')return;
   const d=job.documents[job.processed];
@@ -269,7 +286,7 @@ function showFinding(id,documentId){
 
 async function showSettings(){
   const prefs=desktop?await desktop.getPreferences():null;
-  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。修订页可配置模型接口；未接入 PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
+  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>保持在其他窗口前方</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。修订页可配置模型接口；未接入 PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
   $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*job.enabledRules.length):0,status:job?.status||'idle',reducedMotion:reducedMotion()});};
   if(desktop){$('pinSetting').onchange=async e=>{const p=await desktop.setPinned(e.target.checked);$('pinWindow').setAttribute('aria-pressed',String(p.pinned));};$('loginSetting').onchange=async e=>{const p=await desktop.setPreferences({launchAtLogin:e.target.checked});e.target.checked=p.launchAtLogin;};}
 }
@@ -310,10 +327,13 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{if(e.target.id==='scanProject'){workspace.selectedProject=e.target.value;job=null;persist();render();}if(e.target.matches('[data-plan-field]'))finishPlanEdit();});
 $('openSettings').onclick=showSettings;$('closeDialog').onclick=closeDialog;
+$('themeToggle').onclick=()=>{uiPrefs.theme=uiPrefs.theme==='light'?'dark':'light';saveUI();applyUI();visual?.measure();};
+$('collapseSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=true;saveUI();applyUI();};
+$('revealSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=false;saveUI();applyUI();};
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
 if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}
-document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='review'&&queueExpanded&&e.key==='Escape'){setQueueExpanded(false);e.stopPropagation();}
+document.addEventListener('keydown',e=>{if(e.isComposing||e.keyCode===229)return;if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||$('dialog').open)return;if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='review'&&queueExpanded&&e.key==='Escape'){setQueueExpanded(false);e.stopPropagation();}
 if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
 reducedSystem.addEventListener('change',()=>{if(view==='review')updateReview();});
-render();
+applyUI();render();
