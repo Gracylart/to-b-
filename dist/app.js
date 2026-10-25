@@ -25,6 +25,9 @@ function saveUI(){localStorage.setItem('review-studio-ui',JSON.stringify(uiPrefs
 function applyUI(){
   document.documentElement.dataset.theme=uiPrefs.theme==='light'?'light':'dark';
   $('shell').classList.toggle('sidebar-collapsed',Boolean(uiPrefs.sidebarCollapsed));
+  $('studioSidebar').inert=Boolean(uiPrefs.sidebarCollapsed);
+  $('collapseSidebar').setAttribute('aria-expanded',String(!uiPrefs.sidebarCollapsed));
+  $('revealSidebar').setAttribute('aria-expanded',String(!uiPrefs.sidebarCollapsed));
   $('themeToggle').setAttribute('aria-label',uiPrefs.theme==='light'?'切换深色主题':'切换浅色主题');
   document.querySelector('meta[name="theme-color"]').content=uiPrefs.theme==='light'?'#edf3f9':'#0d0e10';
 }
@@ -42,7 +45,8 @@ function setFooter(){
 }
 function renderSideTree(){
   const p=selectedProject(),active=view==='revision'?'revision':view;
-  const item=(label,target,meta='')=>`<button class="side-item" data-view="${target}" ${active===target?'aria-current="page"':''}><span class="tree-caret">›</span><span class="tree-label">${label}</span>${meta?`<span class="tree-meta">${meta}</span>`:''}</button>`;
+  const paths={home:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',project:'M3 6h6l2 2h10v12H3z',review:'m5 12 4 4L19 6M4 21h16',revision:'M14 4H5v16h14v-9M12 12l8-8 2 2-8 8-3 1z'};
+  const item=(label,target,meta='')=>`<button class="side-item" data-view="${target}" ${active===target?'aria-current="page"':''}><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[target]}"/></svg><span class="tree-label">${label}</span>${target==='review'?'<span id="reviewDot" class="tab-dot" hidden></span>':''}${meta?`<span class="tree-meta">${meta}</span>`:''}</button>`;
   const projects=workspace.projects.map((project,index)=>`<button class="side-item" data-project-open="${esc(project.id)}" ${view==='project'&&project.id===p.id?'aria-current="page"':''}><i class="tree-dot" style="--item-color:${colors[index%colors.length]}"></i><span class="tree-label">${esc(project.code)}</span><span class="tree-meta">${project.documents.length}</span></button>`).join('');
   $('sideTree').innerHTML=`<section class="side-group"><div class="side-group-title"><span>工作区</span></div>${item('项目总览','home')}${item('当前项目','project',p.phase)}${item('审核流程','review',activeJob()?Math.floor(job.tick/Math.max(1,job.documents.length*job.enabledRules.length)*100)+'%':'')}${item('批注与修订','revision')}</section><section class="side-group"><div class="side-group-title"><span>项目</span><button data-action="new-project" aria-label="新建项目">＋</button></div><div class="side-subtree">${projects}</div></section><section class="side-group"><div class="side-group-title"><span>资料</span></div><button class="side-item" data-action="import"><span class="tree-caret">＋</span><span class="tree-label">导入待审文案</span></button><button class="side-item" data-action="rules"><span class="tree-caret">⌁</span><span class="tree-label">审核规范</span><span class="tree-meta">${currentRules().length}</span></button></section>`;
   const labels={home:'总览',project:p.name,review:'审核流程',revision:'批注与修订'};
@@ -50,9 +54,8 @@ function renderSideTree(){
 }
 function render(){
   visual?.destroy();visual=null;
-  document.querySelectorAll('[data-view]').forEach(b=>{if(b.dataset.view===(view==='revision'?'review':view))b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('viewRoot').innerHTML=view==='home'?homeHTML():view==='project'?projectHTML():view==='revision'?revision.html():reviewHTML();
-  $('viewRoot').scrollTop=0;setFooter();renderSideTree();if(view==='revision')revision.bind();
+  $('viewRoot').scrollTop=0;renderSideTree();setFooter();if(view==='revision')revision.bind();
   if(view==='review'){bindQueueDrag();visual=new WorkflowVisual($('workflow'),{reducedMotion:reducedMotion(),groups:currentMatrices()});updateReview();}
 }
 function homeHTML(){
@@ -328,8 +331,8 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{if(e.target.id==='scanProject'){workspace.selectedProject=e.target.value;job=null;persist();render();}if(e.target.matches('[data-plan-field]'))finishPlanEdit();});
 $('openSettings').onclick=showSettings;$('closeDialog').onclick=closeDialog;
 $('themeToggle').onclick=()=>{uiPrefs.theme=uiPrefs.theme==='light'?'dark':'light';saveUI();applyUI();visual?.measure();};
-$('collapseSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=true;saveUI();applyUI();};
-$('revealSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=false;saveUI();applyUI();};
+$('collapseSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=true;saveUI();applyUI();$('revealSidebar').focus();};
+$('revealSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=false;saveUI();applyUI();$('collapseSidebar').focus();};
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
 if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}
