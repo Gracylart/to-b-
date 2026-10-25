@@ -20,7 +20,10 @@
         <button data-view="project">PROJECT</button>
         <button data-view="review">REVIEW <span id="reviewDot" class="tab-dot" hidden></span></button>
       </nav>
-      <div class="header-tools"><button class="icon-button pin-button" id="pinWindow" aria-label="固定窗口" aria-pressed="false" title="固定窗口">⌖</button><button class="icon-button" id="openSettings" aria-label="设置"><img src="assets/figma/a-icon-settings.svg" alt=""></button></div>
+      <div class="header-tools">
+        <button class="icon-button pin-button" id="pinWindow" aria-label="固定窗口" aria-pressed="false" title="固定窗口"><svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6.5"/><path d="M12 3v18M3 12h18"/></svg></button>
+        <button class="icon-button" id="openSettings" aria-label="设置"><svg class="header-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 3h4l.7 2.5 1.5.9 2.5-.6 2 3.4-1.8 1.9v1.8l1.8 1.9-2 3.4-2.5-.6-1.5.9L14 21h-4l-.7-2.5-1.5-.9-2.5.6-2-3.4 1.8-1.9v-1.8L3.3 9.2l2-3.4 2.5.6 1.5-.9L10 3Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
     </header>
     <div id="viewRoot" class="view-root"></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

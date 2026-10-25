@@ -6,6 +6,12 @@ import {WorkflowVisual} from './modules/workflow-visual.js';
 
 const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
+// Window activation may focus the first button without keyboard interaction.
+// Keep that native focus separate from the page selection indicator.
+document.addEventListener('keydown',e=>{
+  if(e.key==='Tab'&&!e.isComposing&&!e.metaKey&&!e.ctrlKey&&!e.altKey)document.documentElement.setAttribute('data-keyboard-focus','');
+},true);
+document.addEventListener('pointerdown',()=>document.documentElement.removeAttribute('data-keyboard-focus'),true);
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
 let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false;
 const revision=new RevisionView({desktop,notify,refresh:()=>{if(view==='revision')render();}});
