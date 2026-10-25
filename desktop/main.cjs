@@ -17,6 +17,7 @@ let tray;
 let panel;
 let status = { ...INITIAL_STATUS };
 let preferences = { pinned: false, launchAtLogin: false };
+let loginItemStatus = 'not-registered';
 let quitting = false;
 let readyToShow = false;
 let showRequested = true;
@@ -46,10 +47,26 @@ function loadPreferences() {
   try {
     windowSize = sanitizeWindowSize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window-size.json'), 'utf8')));
   } catch { windowSize = sanitizeWindowSize(); }
-  // The OS is authoritative, including changes made in System Settings.
-  if (app.isPackaged && process.platform === 'darwin') {
-    preferences.launchAtLogin = app.getLoginItemSettings().openAtLogin;
+  const login = refreshLoginItem();
+  if (login?.wasOpenedAtLogin || login?.wasOpenedAsHidden) showRequested = false;
+}
+
+function refreshLoginItem() {
+  if (!app.isPackaged || process.platform !== 'darwin') {
+    preferences.launchAtLogin = false;
+    loginItemStatus = 'unavailable';
+    return null;
   }
+  const login = app.getLoginItemSettings();
+  preferences.launchAtLogin = login.openAtLogin === true;
+  loginItemStatus = ['enabled','requires-approval','not-registered','not-found'].includes(login.status)
+    ? login.status : preferences.launchAtLogin ? 'enabled' : 'not-registered';
+  return login;
+}
+
+function preferenceSnapshot() {
+  refreshLoginItem();
+  return { ...preferences, loginItemStatus };
 }
 
 function savePreferences() {
@@ -61,12 +78,13 @@ function savePreferences() {
 }
 
 function updatePreferences(value) {
+  refreshLoginItem();
   const next = sanitizePreferences(value, preferences);
   if (next.launchAtLogin !== preferences.launchAtLogin) {
     // Login items should point to the packaged app, never a development Electron executable.
     if (app.isPackaged && process.platform === 'darwin') {
-      app.setLoginItemSettings({ openAtLogin: next.launchAtLogin, openAsHidden: true });
-      next.launchAtLogin = app.getLoginItemSettings().openAtLogin;
+      app.setLoginItemSettings({ openAtLogin: next.launchAtLogin });
+      next.launchAtLogin = app.getLoginItemSettings().openAtLogin === true;
     } else {
       next.launchAtLogin = false;
     }
@@ -74,7 +92,7 @@ function updatePreferences(value) {
   preferences = next;
   savePreferences();
   if (panel && !panel.isDestroyed()) panel.setAlwaysOnTop(preferences.pinned, 'floating');
-  return { ...preferences };
+  return preferenceSnapshot();
 }
 
 function positionPanel() {
@@ -124,6 +142,7 @@ function updateTray() {
 }
 
 function createTrayMenu() {
+  refreshLoginItem();
   return Menu.buildFromTemplate([
     { label: `打开${APP_NAME}`, click: () => showPanel() },
     { label: '项目总览', click: () => showPanel('home') },
@@ -131,7 +150,7 @@ function createTrayMenu() {
     { type: 'separator' },
     { label: '固定窗口', type: 'checkbox', checked: preferences.pinned, click: (item) => updatePreferences({ pinned: item.checked }) },
     {
-      label: '开机启动',
+      label: '开机自启动',
       type: 'checkbox',
       checked: preferences.launchAtLogin,
       enabled: app.isPackaged && process.platform === 'darwin',
@@ -288,11 +307,15 @@ function installIPC() {
   });
   ipcMain.handle('review:preferences:get', (event) => {
     if (!trustedSender(event)) throw new Error('Untrusted sender');
-    return { ...preferences };
+    return preferenceSnapshot();
   });
   ipcMain.handle('review:preferences:set', (event, value) => {
     if (!trustedSender(event)) throw new Error('Untrusted sender');
     return updatePreferences(value);
+  });
+  ipcMain.handle('review:login-settings:open', (event) => {
+    if (!trustedSender(event)) throw new Error('Untrusted sender');
+    return shell.openExternal('x-apple.systempreferences:com.apple.LoginItems-Settings.extension');
   });
   ipcMain.on('review:hide', (event) => {
     if (trustedSender(event)) hidePanel();

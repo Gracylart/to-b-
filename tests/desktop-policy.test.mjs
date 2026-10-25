@@ -160,7 +160,7 @@ test('CSP blocks network, script injection, frames, plugins, and form submission
 // Execute the actual main-process wiring with Electron and disk I/O replaced.
 // This checks trust decisions at the IPC handlers, without starting a GUI or
 // changing the host's preferences, login items, files, or browser.
-async function mainHarness() {
+async function mainHarness({openedAtLogin=false,loginStatus='not-registered',openAtLogin=false}={}) {
   const invocations = new Map();
   const ipcMain = new EventEmitter();
   ipcMain.handle = (name, callback) => invocations.set(name, callback);
@@ -170,7 +170,9 @@ async function mainHarness() {
   const writes = [];
   const reads = [];
   const appPaths = new Map([['appData', '/virtual/app-data'], ['userData', '/virtual/review-desk']]);
-  let loginAtStartup = false;
+  let loginAtStartup = openAtLogin;
+  let osLoginStatus = loginStatus;
+  const loginUpdates = [];
 
   class MockContents extends EventEmitter {
     constructor() {
@@ -186,11 +188,15 @@ async function mainHarness() {
       this.options = options;
       this.webContents = new MockContents();
       this.hideCount = 0;
+      this.showCount = 0;
       windows.push(this);
     }
     isDestroyed() { return false; }
     setMenu() {}
     setAlwaysOnTop() {}
+    setBounds() {}
+    show() { this.showCount += 1; }
+    focus() {}
     loadFile(file, options) {
       this.webContents.mainFrame.url = `${pathToFileURL(file).href}?desktop=${options.query.desktop}`;
       return Promise.resolve();
@@ -202,6 +208,7 @@ async function mainHarness() {
     isDestroyed() { return false; }
     setTitle(title) { this.title = title; }
     setToolTip() {}
+    getBounds() { return { x: 1000, y: 0, width: 20, height: 24 }; }
     destroy() {}
   }
   const app = new EventEmitter();
@@ -212,17 +219,18 @@ async function mainHarness() {
     setAppUserModelId() {},
     requestSingleInstanceLock: () => true,
     whenReady: () => Promise.resolve(),
+    isReady: () => true,
     getPath: name => appPaths.get(name) || '/virtual/review-desk',
     setPath: (name, value) => appPaths.set(name, value),
-    getLoginItemSettings: () => ({ openAtLogin: loginAtStartup }),
-    setLoginItemSettings: value => { loginAtStartup = value.openAtLogin; },
+    getLoginItemSettings: () => ({ openAtLogin: loginAtStartup, wasOpenedAtLogin: openedAtLogin, status: osLoginStatus }),
+    setLoginItemSettings: value => { loginUpdates.push(value); loginAtStartup = value.openAtLogin; osLoginStatus = value.openAtLogin ? 'enabled' : 'not-registered'; },
     quit() {},
   });
   const electron = {
     app, BrowserWindow: MockWindow, Tray: MockTray, ipcMain,
     Menu: { buildFromTemplate: items => items },
     nativeImage: { createFromPath: () => ({ setTemplateImage() {} }) },
-    screen: new EventEmitter(),
+    screen: Object.assign(new EventEmitter(),{getDisplayMatching:()=>({workArea:{x:0,y:24,width:1440,height:876}})}),
     shell: { openExternal: url => { opened.push(url); return Promise.resolve(); } },
     session: { defaultSession: {
       setPermissionRequestHandler() {},
@@ -255,8 +263,40 @@ async function mainHarness() {
   assert.equal(windows.length, 1, 'The main-process setup must succeed');
   const panel = windows[0];
   const trustedEvent = () => ({ sender: panel.webContents, senderFrame: panel.webContents.mainFrame });
-  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, reads, appPaths, trustedEvent };
+  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, reads, appPaths, trustedEvent, loginUpdates,
+    setOSLogin(value,status) { loginAtStartup=value;osLoginStatus=status; } };
 }
+
+test('login toggle uses real OS state, including external changes and pending approval',async()=>{
+  const h=await mainHarness();
+  const get=()=>h.invocations.get('review:preferences:get')(h.trustedEvent());
+  const set=value=>h.invocations.get('review:preferences:set')(h.trustedEvent(),{launchAtLogin:value});
+  assert.equal(get().launchAtLogin,false);
+  assert.equal(set(true).launchAtLogin,true);
+  assert.equal(h.loginUpdates.length,1);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.loginUpdates[0])),{openAtLogin:true});
+  h.setOSLogin(false,'not-registered');
+  assert.equal(get().launchAtLogin,false,'System Settings changes must be reflected without restarting');
+  h.setOSLogin(true,'requires-approval');
+  assert.equal(get().loginItemStatus,'requires-approval');
+  assert.equal(set(false).launchAtLogin,false);
+  assert.equal(get().loginItemStatus,'not-registered');
+});
+
+test('login launch stays in menu bar while manual launch opens its window',async()=>{
+  const login=await mainHarness({openedAtLogin:true,openAtLogin:true,loginStatus:'enabled'});
+  login.panel.emit('ready-to-show');
+  assert.equal(login.panel.showCount,0);
+  const manual=await mainHarness();manual.panel.emit('ready-to-show');
+  assert.equal(manual.panel.showCount,1);
+});
+
+test('opening login settings is a narrow trusted IPC action',async()=>{
+  const h=await mainHarness(),open=h.invocations.get('review:login-settings:open');
+  assert.throws(()=>open({sender:{},senderFrame:{}}),/Untrusted sender/);
+  await open(h.trustedEvent());
+  assert.deepEqual(h.opened,['x-apple.systempreferences:com.apple.LoginItems-Settings.extension']);
+});
 
 test('actual IPC handlers reject unrelated senders, child frames, and missing frames', async () => {
   const harness = await mainHarness();
@@ -380,7 +420,7 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
     clearTimeout() {},
   }, { filename: 'desktop/preload.cjs' });
   assert.deepEqual(Object.keys(exposed).sort(), [
-    'copyCode', 'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
+    'copyCode', 'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'openLoginSettings', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
   ]);
   assert.ok(Object.isFrozen(exposed));
   exposed.updateStatus({ state: 'invalid', progress: 2, issues: 0 });
@@ -395,6 +435,8 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
   assert.deepEqual(JSON.parse(JSON.stringify(invoked[0][1])), { pinned: true });
   await exposed.getPreferences();
   assert.equal(invoked[1][0], 'review:preferences:get');
+  await exposed.openLoginSettings();
+  assert.deepEqual(invoked[2], ['review:login-settings:open']);
   const received = [];
   const unsubscribe = exposed.onNavigate((...args) => received.push(args));
   const privateElectronEvent = { sender: { privileged: true } };

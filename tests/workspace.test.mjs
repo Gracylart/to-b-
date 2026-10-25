@@ -15,3 +15,18 @@ test('legacy sample team migrates but an edited team remains intact',()=>{
   ws.projects[1].members=[{name:'自定义',role:'结构'},{name:'A',role:'项目'},{name:'B',role:'ID'}];saveWorkspace(ws,storage);
   const restored=loadWorkspace(storage);assert.equal(restored.projects[0].members.length,12);assert.equal(restored.projects[0].enabledRules.length,8);assert.equal(restored.projects[1].members[0].name,'自定义');
 });
+
+test('skin persists with project data, while legacy or unknown skins fall back to Apple',()=>{
+  const storage=memory(),ws=createWorkspace();
+  for(const skin of ['apple','blue','claude']){
+    ws.settings={skin,reducedMotion:true};saveWorkspace(ws,storage);
+    const restored=loadWorkspace(storage);
+    assert.equal(restored.settings.skin,skin);
+    assert.equal(restored.settings.reducedMotion,true);
+    assert.equal(restored.projects[0].documents[0].code,ws.projects[0].documents[0].code);
+  }
+  for(const skin of [undefined,'external.css','__proto__',null]){
+    ws.settings={skin};saveWorkspace(ws,storage);
+    assert.equal(loadWorkspace(storage).settings.skin,'apple');
+  }
+});

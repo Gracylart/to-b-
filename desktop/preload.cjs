@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('reviewDesktop', Object.freeze({
   getPreferences() {
     return ipcRenderer.invoke('review:preferences:get');
   },
+  openLoginSettings() {
+    return ipcRenderer.invoke('review:login-settings:open');
+  },
   setPreferences(preferences) {
     const values = {};
     if (typeof preferences?.pinned === 'boolean') values.pinned = preferences.pinned;

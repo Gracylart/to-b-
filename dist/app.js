@@ -3,6 +3,7 @@ import {BLUE_PALETTE,enabledRuleIds,ruleGroups,matrixGroups,matrixCount,TEAM_ROL
 import {RULES,analyzeDocument} from './modules/audit-engine.js';
 import {loadWorkspace,saveWorkspace,escapeHTML as esc,newId,formatDate,timelinePosition} from './modules/workspace.js';
 import {WorkflowVisual} from './modules/workflow-visual.js';
+import {SKINS,applySkin} from './modules/appearance.js';
 
 const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
@@ -13,7 +14,8 @@ document.addEventListener('keydown',e=>{
 },true);
 document.addEventListener('pointerdown',()=>document.documentElement.removeAttribute('data-keyboard-focus'),true);
 let workspace=loadWorkspace(),view='home',expanded=workspace.selectedProject,bomFilter='all',queueFilter='all';
-let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false;
+applySkin(workspace.settings.skin);
+let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExpanded=false,planEditing=false,settingsRefresh=null;
 const revision=new RevisionView({desktop,notify,refresh:()=>{if(view==='revision')render();}});
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
@@ -184,8 +186,9 @@ async function finishRun(){
 function pauseRun(){if(job?.status!=='running')return;job.elapsed=elapsedMs();job.status='paused';clearInterval(jobTimer);jobTimer=null;log('info','检查已暂停，当前结果已保留。');updateReview();notifyDesktop();}
 function resumeRun(){if(job?.status!=='paused')return;job.resumedAt=performance.now();job.status='running';log('info','继续从当前文案执行。');scheduleRun();updateReview();notifyDesktop();}
 function stopRun(){if(!activeJob())return;job.elapsed=elapsedMs();job.status='cancelled';clearInterval(jobTimer);jobTimer=null;log('info','审核已停止，已完成的检查结果可导出。');updateReview();notifyDesktop();}
-function openDialog(title,html){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;if(!$('dialog').open)$('dialog').showModal();}
-function closeDialog(){$('dialog').close();}
+function clearSettingsRefresh(){if(settingsRefresh){window.removeEventListener('focus',settingsRefresh);settingsRefresh=null;}}
+function openDialog(title,html){clearSettingsRefresh();$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;if(!$('dialog').open)$('dialog').showModal();}
+function closeDialog(){clearSettingsRefresh();$('dialog').close();}
 function showDocument(id,projectId){
   const p=workspace.projects.find(p=>p.id===projectId),d=p?.documents.find(d=>d.id===id);if(!d)return;
   openDialog(d.name,`<p class="small muted" style="margin-bottom:10px">${esc(d.code||'LOCAL')} · ${d.example?'示例文案':'本地文案'}</p><div class="document-preview" id="documentText"></div><div class="dialog-actions"><button class="button" data-edit-document="${esc(d.id)}" data-project="${esc(p.id)}">编辑文案</button><button class="button primary" ${d.text.trim()?'':'disabled'} data-review-document="${esc(d.id)}" data-project="${esc(p.id)}">审核此文案 →</button></div>`);$('documentText').textContent=d.text||'尚未添加文案';
@@ -274,10 +277,32 @@ function showFinding(id,documentId){
 }
 
 async function showSettings(){
-  const prefs=desktop?await desktop.getPreferences():null;
-  openDialog('审核台设置',`<div class="setting-row"><div>减少动态效果<small>关闭粒子飞行与方块闪烁</small></div><input id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div>固定窗口<small>点击其他位置时保留审核台</small></div><input id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div>登录时启动<small>只启动菜单栏入口</small></div><input id="loginSetting" type="checkbox" aria-label="登录时启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-note">审核采用 ${RULES.length} 项本地确定性规则，支持文本输入和导入。项目、SKU、成员和历史统计中的初始内容为示例。修订页可配置模型接口；未接入 PDM 或团队账号。</div><div class="rule"></div><div class="stack small"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a><a href="https://github.com/Javis603/token-monitor" target="_blank" rel="noreferrer">菜单栏形态参考 · Token Monitor ↗</a>${desktop?'':'<a href="reference/index.html" target="_blank">原始粒子动效演示 ↗</a>'}</div>`);
+  let prefs;
+  try{prefs=desktop?await desktop.getPreferences():null;}catch(error){notify('无法读取设置：'+error.message);return;}
+  openDialog('审核台设置',`<fieldset class="skin-picker"><legend>皮肤</legend><div class="skin-options">${SKINS.map(s=>`<label class="skin-option" data-skin-option="${s.id}"><input type="radio" name="skin" value="${s.id}" aria-label="${s.name}"${workspace.settings.skin===s.id?' checked':''}><span class="skin-preview" aria-hidden="true"><i></i><i></i><i></i></span><span class="skin-name">${s.name}</span></label>`).join('')}</div></fieldset><div class="setting-row"><div><label for="reduceMotion">减少动态效果</label><small>关闭粒子飞行与方块闪烁</small></div><input class="setting-toggle" id="reduceMotion" type="checkbox" aria-label="减少动态效果"${workspace.settings.reducedMotion?' checked':''}></div>${desktop?`<div class="setting-row"><div><label for="pinSetting">固定窗口</label><small>点击其他位置时保留审核台</small></div><input class="setting-toggle" id="pinSetting" type="checkbox" aria-label="固定窗口"${prefs.pinned?' checked':''}></div><div class="setting-row"><div><label for="loginSetting">开机自启动</label><small id="loginStatus" role="status">登录后在菜单栏待命</small><button class="setting-link" id="openLoginSettings" hidden>打开系统登录项 ↗</button></div><input class="setting-toggle" id="loginSetting" type="checkbox" aria-label="开机自启动"${prefs.launchAtLogin?' checked':''}></div>`:''}<div class="settings-footer"><a href="https://github.com/Gracylart/to-b-" target="_blank" rel="noreferrer">项目源代码 ↗</a></div>`);
+  document.querySelectorAll('input[name="skin"]').forEach(input=>{input.onchange=()=>{
+    workspace.settings.skin=applySkin(input.value);persist();visual?.measure();
+  };});
   $('reduceMotion').onchange=e=>{workspace.settings.reducedMotion=e.target.checked;persist();visual?.setState({running:job?.status==='running',progress:job?job.tick/(job.documents.length*job.enabledRules.length):0,status:job?.status||'idle',reducedMotion:reducedMotion()});};
-  if(desktop){$('pinSetting').onchange=async e=>{const p=await desktop.setPinned(e.target.checked);$('pinWindow').setAttribute('aria-pressed',String(p.pinned));};$('loginSetting').onchange=async e=>{const p=await desktop.setPreferences({launchAtLogin:e.target.checked});e.target.checked=p.launchAtLogin;};}
+  if(desktop){
+    const updateLogin=p=>{
+      const pending=p.loginItemStatus==='requires-approval';
+      $('loginSetting').checked=p.launchAtLogin;
+      $('loginStatus').textContent=pending?'请在系统登录项中允许审核台启动':'登录后在菜单栏待命';
+      $('openLoginSettings').hidden=!pending;
+    };
+    updateLogin(prefs);
+    $('pinSetting').onchange=async e=>{const control=e.target;control.disabled=true;try{const p=await desktop.setPinned(control.checked);prefs=p;control.checked=p.pinned;$('pinWindow').setAttribute('aria-pressed',String(p.pinned));}catch(error){control.checked=prefs.pinned;notify(error.message);}finally{control.disabled=false;}};
+    $('loginSetting').onchange=async e=>{
+      const control=e.target,wanted=control.checked;control.disabled=true;
+      try{const p=await desktop.setPreferences({launchAtLogin:wanted});prefs=p;updateLogin(p);if(wanted&&!p.launchAtLogin&&p.loginItemStatus!=='requires-approval'){$('loginStatus').textContent='系统未启用，请检查登录项';$('openLoginSettings').hidden=false;}}
+      catch(error){control.checked=prefs.launchAtLogin;$('loginStatus').textContent='无法更新：'+error.message;}
+      finally{control.disabled=false;}
+    };
+    $('openLoginSettings').onclick=()=>desktop.openLoginSettings().catch(error=>{$('loginStatus').textContent=error.message;});
+    settingsRefresh=()=>{if(!$('loginSetting')||!$('dialog').open){clearSettingsRefresh();return;}desktop.getPreferences().then(p=>{if($('loginSetting')&&$('dialog').open){prefs=p;updateLogin(p);}}).catch(()=>{});};
+    window.addEventListener('focus',settingsRefresh);
+  }
 }
 const actions={
   'scan-select':()=>{job=null;setView('review');},
@@ -316,6 +341,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{if(e.target.id==='scanProject'){workspace.selectedProject=e.target.value;job=null;persist();render();}if(e.target.matches('[data-plan-field]'))finishPlanEdit();});
 $('openSettings').onclick=showSettings;$('closeDialog').onclick=closeDialog;
+$('dialog').addEventListener('close',clearSettingsRefresh);
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
 if(desktop){desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));const syncPrefs=()=>desktop.getPreferences().then(p=>$('pinWindow').setAttribute('aria-pressed',String(p.pinned))).catch(()=>{});syncPrefs();window.addEventListener('focus',syncPrefs);$('pinWindow').onclick=async()=>{const p=await desktop.getPreferences(),next=await desktop.setPinned(!p.pinned);$('pinWindow').setAttribute('aria-pressed',String(next.pinned));notify(next.pinned?'窗口已固定。':'点击其他位置时收起窗口。');};}

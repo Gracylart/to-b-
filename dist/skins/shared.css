@@ -1,0 +1,30 @@
+/* Shared chrome stays aligned while the selected material changes. */
+html[data-skin] .header-tools { align-items: center; gap: .25rem; }
+html[data-skin] .header-tools .icon-button { width: 2.4rem; height: 2.4rem; flex: 0 0 2.4rem; padding: 0; line-height: 1; }
+html[data-skin] .header-icon { display: block; width: 1.4rem; height: 1.4rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+html[data-skin]:not([data-keyboard-focus]) :is(button,summary):focus-visible { outline: none; }
+html[data-keyboard-focus] .view-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+html[data-skin] .view-tabs { height: auto; min-height: 2.85rem; }
+html[data-skin] .view-tabs button { display: flex; align-items: center; justify-content: center; min-height: 2.2rem; line-height: 1.25; border: 0; }
+.skin-picker { border: 0; margin: 0; padding: 0 0 1.1rem; min-width: 0; }
+.skin-picker legend { font-size: 1rem; margin-bottom: .75rem; }
+.skin-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .6rem; }
+.skin-option { position: relative; cursor: pointer; display: flex; flex-direction: column; gap: .5rem; padding: .45rem; border: 1px solid var(--border); border-radius: .75rem; background: var(--control); min-width: 0; }
+.skin-option:has(input:checked) { border-color: var(--blue); background: color-mix(in srgb,var(--blue) 8%,transparent); }
+.skin-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.skin-option:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 3px; }
+.skin-preview { display: grid; grid-template-columns: .35fr 1fr; gap: 4px; padding: 7px; height: 2.8rem; border-radius: .4rem; background: var(--preview-bg); border: 1px solid #7890a833; }
+.skin-preview i { border-radius: 2px; background: var(--preview-card); }
+.skin-preview i:first-child { grid-row: span 2; background: var(--preview-accent); opacity: .6; }
+.skin-name { font-size: max(12px,.88rem); text-align: center; color: var(--text); white-space: nowrap; }
+[data-skin-option="apple"] { --preview-bg: #e7eef6; --preview-card: #fff; --preview-accent: #0865cf; }
+[data-skin-option="blue"] { --preview-bg: #26364b; --preview-card: #465a73; --preview-accent: #80bdff; }
+[data-skin-option="claude"] { --preview-bg: #1b232c; --preview-card: #313e4a; --preview-accent: #a7ccef; }
+html[data-skin] .setting-row .setting-toggle { appearance: none; -webkit-appearance: none; width: 2.65rem; height: 1.6rem; min-width: 2.65rem; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 2rem; background: color-mix(in srgb,var(--muted) 22%,transparent); position: relative; cursor: pointer; transition: background-color 150ms ease; }
+.setting-toggle::after { content: ''; position: absolute; width: 1.15rem; height: 1.15rem; top: calc(50% - .575rem); left: .17rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px #0002; transition: transform 150ms ease; }
+html[data-skin] .setting-row .setting-toggle:checked { background: var(--blue); border-color: transparent; }
+.setting-toggle:checked::after { transform: translateX(1.05rem); }
+.setting-row label { cursor: pointer; }
+.setting-link { display: block; color: var(--blue); font-size: .9rem; margin-top: .4rem; }
+.settings-footer { padding-top: 1rem; font-size: .9rem; }
+@media (prefers-reduced-motion:reduce) { .setting-toggle,.setting-toggle::after { transition: none !important; } }

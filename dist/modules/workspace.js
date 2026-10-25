@@ -1,5 +1,6 @@
 import {enabledRuleIds,sampleMembers,matrixCount} from './review-model.js';
 import { SAMPLE_DOCUMENTS } from './audit-engine.js';
+import {normalizeSkin} from './appearance.js';
 
 export const STORAGE_KEY = 'review-desk-workspace-v1';
 const names = ['滚筒拆装标贴', '黄板箱', '基站铭牌', '快速指南', '说明书', '销售标贴', '主机铭牌'];
@@ -20,7 +21,7 @@ export function createWorkspace() {
       documents:Array.from({length:p.count},(_,n)=>({id:`${p.id}-doc-${n}`,name:`${p.code}-${i===0?'国内版-':''}${names[n]}`,code:codes[n],text:sample.text,example:true,status:n>3?'reviewed':'pending',filename:`${p.code}-${names[n]}.txt`,createdAt})),
     };
   });
-  return {version:1,projects,history:[],selectedProject:'r501p',settings:{reducedMotion:false},createdAt};
+  return {version:1,projects,history:[],selectedProject:'r501p',settings:{reducedMotion:false,skin:'apple'},createdAt};
 }
 
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -55,7 +56,7 @@ export function loadWorkspace(storage=localStorage) {
     });
     if(!projects.length)return createWorkspace();
     const history=(Array.isArray(value.history)?value.history:[]).filter(h=>record(h)&&typeof h.projectId==='string'&&Number.isFinite(h.total)&&h.total>=0&&Number.isFinite(h.clean)&&h.clean>=0&&Number.isFinite(h.elapsed)&&h.elapsed>=0&&typeof h.date==='string'&&Number.isFinite(Date.parse(h.date))).slice(-50).map(h=>({...h,total:count(h.total),clean:Math.min(count(h.total),count(h.clean)),issues:count(h.issues),example:h.example===true}));
-    return {...value,projects,history,createdAt,settings:{reducedMotion:value.settings?.reducedMotion===true},selectedProject:projectIds.has(value.selectedProject)?value.selectedProject:projects[0].id};
+    return {...value,projects,history,createdAt,settings:{reducedMotion:value.settings?.reducedMotion===true,skin:normalizeSkin(value.settings?.skin)},selectedProject:projectIds.has(value.selectedProject)?value.selectedProject:projects[0].id};
   } catch {return createWorkspace();}
 }
 export function saveWorkspace(workspace,storage=localStorage) {
