@@ -9,11 +9,13 @@ function layout() {
   const style = getComputedStyle(stage);
   const availableWidth = Math.max(1, stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
   const availableHeight = Math.max(1, stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom));
-  const width = replica.classList.contains('collapsed') ? 169 : 439;
-  const scale = Math.min(1, availableWidth / width, availableHeight / 1480);
+  const replicaStyle = getComputedStyle(replica);
+  const width = parseFloat(replicaStyle.width);
+  const height = parseFloat(replicaStyle.height);
+  const scale = Math.min(1, availableWidth / width, availableHeight / height);
   replica.style.transform = `scale(${scale})`;
   footprint.style.width = `${width * scale}px`;
-  footprint.style.height = `${1480 * scale}px`;
+  footprint.style.height = `${height * scale}px`;
 }
 
 toggle.addEventListener('click', () => {
@@ -63,4 +65,5 @@ document.querySelectorAll('.nav-row').forEach(button => {
 new ResizeObserver(() => {
   if (!request) request = requestAnimationFrame(layout);
 }).observe(stage);
+document.addEventListener('replica:layout', layout);
 layout();
