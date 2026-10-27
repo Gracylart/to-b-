@@ -16,26 +16,16 @@
   <main class="studio-shell" id="shell" aria-label="文案审核台 Studio">
     <aside class="studio-sidebar" id="studioSidebar" aria-label="工作区导航">
       <header class="side-header">
-        <div class="side-brand"><div class="studio-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div><div class="brand-label"><strong>审核台</strong><small>REVIEW DESK</small></div></div>
-        <button class="collapse-button" id="collapseSidebar" aria-label="收起侧边栏" aria-controls="studioSidebar" title="收起侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 7 9.5 12l5 5M5 4h14v16H5z"/></svg></button>
+        <button class="collapse-button" id="collapseSidebar" aria-label="收起侧边栏" aria-controls="studioSidebar" title="收起侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
       </header>
-      <button class="side-command" id="openCommand" title="搜索项目或文档 · ⌘ K" aria-label="搜索项目或文档"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span>搜索项目或文档</span><kbd>⌘ K</kbd></button>
+      <button class="side-command" id="openCommand" title="搜索项目或文档 · ⌘ K" aria-label="搜索项目或文档"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v10a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V7Z"/></svg><span>搜索</span><kbd>⌘ K</kbd></button>
       <nav class="side-tree" id="sideTree" aria-label="当前分组"></nav>
-      <footer class="side-footer">
-        <div class="workspace-identity"><span class="workspace-avatar" aria-hidden="true">RD</span><div><strong>本机工作区</strong><small><i></i> 已保存到本机</small></div></div>
-        <div class="side-tools">
-          <button id="pinWindow" aria-label="固定窗口" aria-pressed="false" title="固定窗口"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 8 0-1 6 3 3v2H6v-2l3-3-1-6ZM12 14v7"/></svg></button>
-          <button id="themeToggle" aria-label="切换浅色主题" title="切换主题"><svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg></button>
-          <button id="openSettings" aria-label="设置" title="设置"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm8 3.8-2.1-1 .2-2.3-2.8-1.6-1.9 1.3L11.5 7 9.6 8.4 7.7 7.1 4.9 8.7l.2 2.3L3 12l2.1 1-.2 2.3 2.8 1.6 1.9-1.3 1.9 1.4 1.9-1.4 1.9 1.3 2.8-1.6-.2-2.3 2.1-1Z"/></svg></button>
-        </div>
-      </footer>
     </aside>
 
     <section class="workspace-pane">
       <header class="workspace-header">
         <button class="side-reveal" id="revealSidebar" aria-label="展开侧边栏" aria-controls="studioSidebar" title="展开侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 7 5 5-5 5M5 4h14v16H5z"/></svg></button>
-        <div class="breadcrumb" id="breadcrumb"><span>审核台</span><b>总览</b></div>
-        <div class="desktop-status"><i></i><span>本机工作区</span></div>
+        <div class="breadcrumb" id="breadcrumb"><b>总览</b></div>
       </header>
       <div id="viewRoot" class="view-root"></div>
       <div class="toast" id="toast" role="status" aria-live="polite"></div>

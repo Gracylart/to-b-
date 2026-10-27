@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#10151d">
+  <meta name="theme-color" content="#1b1d1e">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>桌面预览 · 文案审核台 Studio</title>
   <link rel="icon" href="assets/app-mark.svg" type="image/svg+xml">
@@ -11,34 +11,11 @@
   <script type="module" src="preview.js"></script>
 </head>
 <body>
-  <header class="preview-toolbar">
-    <div class="preview-label"><span class="preview-indicator" aria-hidden="true"></span><span>桌面预览</span></div>
-    <div class="viewport-options" role="group" aria-label="预览尺寸">
-      <button type="button" data-size="standard" aria-pressed="true">标准 <span>1200 × 800</span></button>
-      <button type="button" data-size="compact" aria-pressed="false">紧凑 <span>960 × 680</span></button>
-      <button type="button" data-size="fit" aria-pressed="false">适应窗口</button>
-    </div>
-    <output class="size-readout" id="sizeReadout" aria-label="当前预览尺寸">1200 × 800</output>
-  </header>
-  <main class="desktop-stage" id="desktopStage" aria-label="模拟 macOS 桌面">
+  <main class="desktop-stage" id="desktopStage" aria-label="桌面版预览">
     <div class="window-footprint" id="windowFootprint">
-      <section class="desktop-window" id="desktopWindow" aria-label="文案审核台应用窗口">
-        <header class="window-titlebar" id="windowTitlebar">
-          <div class="window-controls" aria-label="窗口控制">
-            <button type="button" class="window-control close-control" id="closeWindow" aria-label="关闭预览窗口" title="关闭窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m4 4 4 4m0-4L4 8"/></svg></button>
-            <button type="button" class="window-control minimize-control" id="minimizeWindow" aria-label="最小化预览窗口" title="最小化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 6h5"/></svg></button>
-            <button type="button" class="window-control maximize-control" id="maximizeWindow" aria-label="最大化预览窗口" aria-pressed="false" title="最大化窗口"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 7V3.5H7M8.5 5v3.5H5"/></svg></button>
-          </div>
-          <h1>文案审核台 <span>· Studio</span></h1>
-          <span class="window-titlebar-spacer" aria-hidden="true"></span>
-        </header>
-        <iframe id="appFrame" src="./index.html?preview=desktop" title="文案审核台 Studio 应用" allow="clipboard-write"></iframe>
+      <section class="desktop-window" id="desktopWindow" aria-label="应用窗口">
+        <iframe id="appFrame" src="./index.html?preview=desktop" title="审核工作区" allow="clipboard-write"></iframe>
       </section>
-    </div>
-    <div class="window-restorer" id="windowRestorer" hidden>
-      <span class="restorer-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-      <p id="windowStateText">窗口已最小化</p>
-      <button type="button" id="restoreWindow">恢复审核台窗口</button>
     </div>
   </main>
 </body>
