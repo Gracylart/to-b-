@@ -1,0 +1,70 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", sans-serif;
+  color: #dce1e8;
+  background: #10151d;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible { outline: 2px solid #85b5f8; outline-offset: 4px; }
+[hidden] { display: none !important; }
+
+.preview-toolbar {
+  flex: 0 0 62px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid #ffffff0b;
+  background: #141920;
+  font-size: 12px;
+}
+.preview-label { display: flex; align-items: center; gap: 9px; color: #8d98a8; white-space: nowrap; }
+.preview-indicator { width: 6px; height: 6px; border-radius: 50%; background: #7d9dc4; }
+.viewport-options { display: flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid #ffffff0a; border-radius: 8px; background: #0f141b; }
+.viewport-options button { border: 0; border-radius: 5px; padding: 7px 11px; background: transparent; color: #8f9aa9; white-space: nowrap; line-height: 18px; }
+.viewport-options button span { margin-left: 4px; color: #788494; font-size: 11px; font-variant-numeric: tabular-nums; }
+.viewport-options button:hover { background: #ffffff05; color: #d7dee8; }
+.viewport-options button[aria-pressed="true"] { background: #28313d; color: #e1e8f0; box-shadow: 0 1px 2px #0003; }
+.viewport-options button[aria-pressed="true"] span { color: #b5c2d3; }
+.size-readout { margin-left: auto; color: #7f8c9e; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.desktop-stage { flex: 1; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 30px 36px 38px; background: #101721; }
+.window-footprint { position: relative; flex: none; }
+.desktop-window { position: absolute; inset: 0 auto auto 0; display: flex; flex-direction: column; transform-origin: top left; border-radius: 12px; overflow: hidden; background: #17191d; box-shadow: 0 0 0 1px #ffffff18, 0 30px 90px #0008, 0 8px 28px #0005; }
+.window-titlebar { height: 38px; flex: 0 0 38px; display: grid; grid-template-columns: 100px 1fr 100px; align-items: center; padding: 0 15px; border-bottom: 1px solid #0005; background: #292c31; user-select: none; }
+.window-titlebar h1 { margin: 0; color: #cbd0d8; text-align: center; font-size: 12px; font-weight: 550; letter-spacing: .01em; }
+.window-titlebar h1 span { color: #a6aeb9; font-weight: 450; }
+.window-controls { display: flex; gap: 8px; align-items: center; }
+.window-control { display: grid; place-items: center; width: 12px; height: 12px; padding: 0; border: 1px solid #0002; border-radius: 50%; }
+.window-control svg { width: 10px; height: 10px; fill: none; stroke: #181818aa; stroke-width: 1.2; stroke-linecap: round; opacity: 0; }
+.window-controls:hover svg, .window-control:focus-visible svg { opacity: 1; }
+.window-control:active { filter: brightness(.85); }
+.close-control { background: #ff6058; }
+.minimize-control { background: #ffbd2e; }
+.maximize-control { background: #28c840; }
+#appFrame { display: block; flex: none; width: 100%; border: 0; background: #17191d; }
+
+.window-restorer { display: flex; flex-direction: column; align-items: center; padding: 28px; color: #91a0b2; }
+.restorer-mark { width: 48px; height: 48px; display: grid; grid-template-columns: repeat(2, 9px); place-content: center; gap: 4px; border: 1px solid #ffffff0e; border-radius: 12px; background: #1d2734; }
+.restorer-mark i { height: 9px; border-radius: 2px; background: #86afe0; }
+.restorer-mark i:last-child { opacity: .4; }
+.window-restorer p { margin: 17px 0; font-size: 12px; }
+.window-restorer button { padding: 9px 15px; border: 1px solid #87b3ec26; border-radius: 7px; background: #25384e; color: #c9dcf4; font-size: 12px; }
+.window-restorer button:hover { background: #2d435c; }
+
+@media (max-width: 740px) {
+  .preview-toolbar { flex-wrap: wrap; gap: 10px; padding: 12px 16px; }
+  .preview-label { flex: 1; }
+  .viewport-options { order: 3; width: 100%; }
+  .viewport-options button { flex: 1; padding-inline: 6px; }
+  .desktop-stage { padding: 20px 16px 26px; }
+}
+@media (max-width: 400px) {
+  .viewport-options button span { display: block; margin: 0; font-size: 10px; }
+}
