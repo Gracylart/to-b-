@@ -8,7 +8,7 @@ function layout() {
   const styles = getComputedStyle(stage);
   const availableWidth = Math.max(1, stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight));
   const availableHeight = Math.max(1, stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom));
-  const width = Math.max(960, availableWidth);
+  const width = Math.max(780, availableWidth);
   const scale = Math.min(1, availableWidth / width, availableHeight / 680);
   const height = Math.max(680, Math.floor(availableHeight / scale));
   desktopWindow.style.width = width + 'px';

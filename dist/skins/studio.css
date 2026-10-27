@@ -113,24 +113,23 @@
 .collapse-button,.side-reveal { width:32px;height:32px;display:grid;place-items:center;color:var(--cds-text-muted);border-radius:7px;-webkit-app-region:no-drag; }
 .collapse-button:hover,.side-reveal:hover { color:var(--cds-text-primary);background:var(--cds-surface-3); }
 .collapse-button svg,.side-reveal svg { width:20px;height:20px; }
-.side-command { display:flex;align-items:center;gap:12px;width:calc(100% - 40px);height:40px;flex-shrink:0;margin:14px 20px 8px;padding:0 12px;border:1px solid var(--cds-alpha-2);border-radius:8px;color:var(--cds-text-muted);background:transparent;font-size:16px;text-align:left; }
+.side-command { display:flex;align-items:center;gap:12px;width:calc(100% - 40px);height:40px;flex-shrink:0;margin:14px 20px 4px;padding:0 12px;border:1px solid var(--cds-alpha-2);border-radius:8px;color:var(--cds-text-muted);background:transparent;font-size:17px;text-align:left; }
 .side-command:hover { border-color:var(--cds-border-strong);color:var(--cds-text-primary); }
 .side-command svg { width:19px;height:19px;flex:0 0 19px; }
 .side-command>span { flex:1;white-space:nowrap; }
-.side-command kbd { white-space:nowrap;font:11px var(--sans);color:var(--cds-text-muted); }
+.side-command kbd { white-space:nowrap;font:16px var(--sans);color:var(--cds-text-muted); }
 .side-tree { flex:1;min-height:0;padding:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--cds-alpha-2) transparent; }
 .side-group { margin:0;padding:16px 20px 20px; }
 .side-group+.side-group { border-top:1px solid var(--cds-alpha-1); }
-.primary-navigation { padding-top:6px;padding-bottom:22px; }
-.side-group-title { display:flex;align-items:center;justify-content:space-between;height:30px;margin-bottom:8px;color:var(--cds-text-muted);font-size:12px;font-weight:600; }
+.primary-navigation { padding-top:6px;padding-bottom:12px; }
+.side-group-title { display:flex;align-items:center;justify-content:space-between;height:30px;margin-bottom:8px;color:var(--cds-text-muted);font-size:13px;font-weight:600; }
 .side-group-title button { width:24px;height:24px;border-radius:5px;color:inherit;font-size:20px; }
 .side-group-title button:hover { background:var(--cds-alpha-1);color:var(--cds-text-primary); }
 .side-group-title .group-toggle { display:flex;align-items:center;gap:8px;width:auto;padding:0;font:inherit; }
 .group-toggle svg { width:15px;height:15px;transition:transform var(--cds-dur-base) var(--cds-ease-swift); }
 .group-closed .group-toggle svg { transform:rotate(-90deg); }
 .group-closed .side-group-content { display:none; }
-.side-item { position:relative;width:100%;min-height:42px;display:flex;align-items:center;gap:14px;padding:10px;text-align:left;color:var(--cds-text-secondary);border-radius:9px;font-size:16px;line-height:22px; }
-.side-item+.side-item,.nav-project+.nav-project { margin-top:2px; }
+.side-item { position:relative;width:100%;min-height:44px;display:flex;align-items:center;gap:14px;padding:10px;text-align:left;color:var(--cds-text-secondary);border-radius:9px;font-size:17px;line-height:24px; }
 .side-item:hover { color:var(--cds-text-primary);background:var(--cds-alpha-1); }
 .side-item[aria-current="page"] { color:var(--cds-text-primary);background:var(--cds-surface-3); }
 .side-item .nav-icon { width:20px;height:20px;flex:0 0 20px;color:var(--cds-text-secondary); }
@@ -139,7 +138,7 @@
 .nav-project-row>.side-item { padding-right:34px; }
 .project-glyph { display:grid;place-items:center;width:18px;height:18px;flex:0 0 18px;border-radius:3px;background:var(--project-color); }
 .side-item .project-glyph .nav-icon { width:16px;height:16px;fill:none;stroke:var(--cds-surface-1);stroke-width:1.8; }
-.project-disclosure { position:absolute;right:6px;top:9px;width:24px;height:24px;display:grid;place-items:center;color:var(--cds-text-muted);border-radius:5px; }
+.project-disclosure { position:absolute;right:6px;top:10px;width:24px;height:24px;display:grid;place-items:center;color:var(--cds-text-muted);border-radius:5px; }
 .project-disclosure:hover { background:var(--cds-surface-3);color:var(--cds-text-primary); }
 .project-disclosure svg { width:16px;height:16px; }
 .project-disclosure[aria-expanded="true"] { background:var(--cds-surface-3); }
