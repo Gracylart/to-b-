@@ -174,3 +174,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 - pdf-lib and @pdf-lib/fontkit: MIT; license files included with their packaged modules.
 - pdfjs-dist: Apache-2.0; license included with packaged module.
 - Noto Sans SC: SIL Open Font License 1.1. Copyright and full license: dist/assets/pdf/OFL.txt. Source: https://github.com/google/fonts/tree/main/ofl/notosanssc .
+# Studio 本地项目文件归集补充
+
+- SheetJS Community Edition 0.20.3，Apache-2.0，来源为官方 CDN `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`。版权与完整许可保留在随应用打包的 `node_modules/xlsx/LICENSE` 中。
+- 本机独立安装的 Ollama v0.40.11（MIT）和 Qwen3-0.6B（Apache-2.0）不随应用二进制重复分发。安装来源、权重校验值和本机存放位置见 `docs/project-file-integration.md`。

@@ -7,12 +7,13 @@ const css=await readFile(new URL('../dist/skins/studio.css',import.meta.url),'ut
 const app=await readFile(new URL('../dist/app.js',import.meta.url),'utf8');
 const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
 
-test('Studio has an isolated native desktop identity and a single sidebar',()=>{
+test('Studio retains its isolated native identity and integrates the completed dual sidebar',()=>{
   assert.match(main,/文案审核台 · Studio/);
   assert.match(main,/com\.gracylart\.copyreviewdesk\.studio/);
   assert.match(main,/titleBarStyle: 'hiddenInset'/);
   assert.match(html,/class="studio-sidebar"/);
-  assert.equal((html.match(/<aside\b/g)||[]).length,1);
+  assert.equal((html.match(/<aside\b/g)||[]).length,2);
+  assert.match(html,/class="app-rail rail"/);
   assert.match(html,/class="workspace-pane"/);
 });
 

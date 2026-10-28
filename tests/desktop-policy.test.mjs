@@ -272,6 +272,8 @@ test('actual IPC handlers reject unrelated senders, child frames, and missing fr
     ipcMain.emit('review:hide', event);
     assert.throws(() => invocations.get('review:preferences:get')(event), /Untrusted sender/);
     assert.throws(() => invocations.get('review:preferences:set')(event, { pinned: true }), /Untrusted sender/);
+    await assert.rejects(invocations.get('review:files')(event,'snapshot'),/Untrusted sender/);
+    await assert.rejects(invocations.get('review:layout')(event,{mode:'sidebar'}),/Untrusted sender/);
   }
   assert.equal(tray.title, '审核台');
   assert.equal(panel.hideCount, 0);
@@ -380,7 +382,7 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
     clearTimeout() {},
   }, { filename: 'desktop/preload.cjs' });
   assert.deepEqual(Object.keys(exposed).sort(), [
-    'copyCode', 'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
+    'copyCode', 'files', 'getPreferences', 'hide', 'isDesktop', 'layout', 'onFilesChanged', 'onLayout', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
   ]);
   assert.ok(Object.isFrozen(exposed));
   exposed.updateStatus({ state: 'invalid', progress: 2, issues: 0 });
@@ -406,6 +408,14 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
   assert.equal(received.length, 1);
   exposed.hide();
   assert.deepEqual(sent[1], ['review:hide']);
+  await assert.rejects(exposed.files('delete'),/Unsupported/);
+  const fileEvents=[],layoutEvents=[];
+  const offFiles=exposed.onFilesChanged(value=>fileEvents.push(value));
+  const offLayout=exposed.onLayout(value=>layoutEvents.push(value));
+  ipcRenderer.emit('review:files-changed',privateElectronEvent,{revision:2});
+  ipcRenderer.emit('review:layout',privateElectronEvent,{mode:'sidebar'});
+  assert.deepEqual(fileEvents,[{revision:2}]);assert.deepEqual(layoutEvents,[{mode:'sidebar'}]);
+  offFiles();offLayout();
 });
 
 test('saved window dimensions are bounded and restored independently', () => {

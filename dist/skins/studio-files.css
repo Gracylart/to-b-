@@ -1,0 +1,75 @@
+/* Reuses the completed replica's dual-column rail, icon sizes and surfaces.
+   Geometry is the replica at 0.75 scale; the original editable replica is intact. */
+.studio-shell{grid-template-columns:64px 264px minmax(0,1fr);transition:none}
+.studio-shell.sidebar-collapsed{grid-template-columns:64px 64px minmax(0,1fr)}
+.app-rail{position:relative;min-height:0;height:100%;background:var(--cds-surface-1);border-right:1px solid var(--cds-alpha-1);display:flex;flex-direction:column;color:var(--cds-text-secondary)}
+.app-rail svg{display:block;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.app-rail .rail-logo{height:60px;flex:0 0 60px;display:grid;place-items:center;border-bottom:1px solid var(--cds-alpha-1);-webkit-app-region:drag}
+.desktop .app-rail .rail-logo{height:88px;flex-basis:88px;padding-top:27px}
+.app-rail .rail-logo svg{width:26px;height:26px;stroke-width:2.4}
+.app-rail .rail-nav{display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:12px}
+.app-rail .rail-button{width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:9px;background:transparent;color:var(--cds-text-secondary);-webkit-app-region:no-drag}
+.app-rail .rail-button svg{width:21px;height:21px}
+.app-rail .rail-button:hover,.app-rail .rail-button.selected{background:var(--cds-surface-3);color:var(--cds-text-primary)}
+.app-rail .rail-bottom{margin-top:auto;display:flex;align-items:center;flex-direction:column;gap:8px;padding-bottom:14px}
+.svg-library{position:absolute;width:0;height:0;overflow:hidden}
+.file-peek{min-width:0;min-height:0;background:var(--cds-surface-1);border-left:1px solid var(--cds-border);display:flex;flex-direction:column;padding:20px 16px;color:var(--cds-text-primary)}
+.file-workspace{max-width:1080px;margin:0 auto}
+.file-view-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+.file-view-heading>div{display:flex;align-items:center;gap:10px;min-width:0}
+.file-view-heading strong{font-size:19px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-view-heading span{color:var(--cds-text-muted);font-size:12px}
+.file-icon-button{flex:0 0 30px;width:30px;height:30px;display:grid;place-items:center;background:transparent;border:0;border-radius:6px;color:var(--cds-text-muted);font-size:20px}
+.file-icon-button:hover{color:var(--cds-text-primary);background:var(--cds-alpha-1)}
+.file-icon-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6}
+.file-tabs{display:flex;gap:18px;border-bottom:1px solid var(--cds-border);flex-shrink:0;margin-bottom:15px}
+.file-tabs button{font-size:12px;color:var(--cds-text-muted);border:0;border-bottom:2px solid transparent;background:transparent;padding:9px 0;display:flex;gap:5px}
+.file-tabs button[aria-pressed=true]{border-bottom-color:var(--cds-blue);color:var(--cds-text-primary)}
+.file-tabs button span{font-size:10px;color:var(--cds-yellow)}
+.file-search-row{display:flex;gap:8px;margin-bottom:12px}
+.file-search-row input,.file-search-row select,.file-pending select{border:1px solid var(--cds-border);border-radius:6px;color:var(--cds-text-primary);background:var(--cds-surface-1);font:12px var(--sans);padding:8px;min-width:0}
+.file-search-row input{flex:1;width:0}.file-search-row select{max-width:35%}
+.file-list{min-height:0;overflow:auto;overscroll-behavior:contain;flex:1}
+.local-file-row{display:flex;align-items:center;border-bottom:1px solid var(--cds-alpha-1);min-width:0}
+.local-file-open{display:flex;gap:10px;align-items:center;padding:14px 6px;background:transparent;border:0;text-align:left;flex:1;min-width:0;color:var(--cds-text-secondary)}
+.local-file-open:hover{background:var(--cds-alpha-1);color:var(--cds-text-primary)}
+.local-file-open>svg{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentColor;stroke-width:1.6}
+.local-file-open>span{min-width:0;overflow:hidden;flex:1}
+.local-file-open b{font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:450}
+.local-file-open small{display:block;font-size:11px;color:var(--cds-text-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-version-group{border-bottom:1px solid var(--cds-alpha-1)}
+.file-version-group summary{display:flex;align-items:center;gap:10px;padding:14px 6px;font-size:13px;list-style:none;cursor:pointer}
+.file-version-group summary>svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}
+.file-version-group summary>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.file-version-group summary small{color:var(--cds-text-muted);font-size:11px}
+.file-version-group>div{padding-left:15px}.file-version-group .local-file-row:last-child{border-bottom:0}
+.file-empty{padding:40px 10px;color:var(--cds-text-muted);font-size:12px;display:flex;align-items:flex-start;gap:18px;flex-direction:column}
+.file-pending{padding:7px 0 15px;border-bottom:1px solid var(--cds-border)}
+.file-pending .local-file-row{border:0}.file-pending p{font-size:11px;color:var(--cds-text-muted);margin:0 5px 12px;overflow-wrap:anywhere}
+.file-pending>div:last-child{display:flex;gap:8px}.file-pending select{flex:1;max-width:65%}.file-pending .button{font-size:11px}
+.file-source-settings{display:flex;flex-direction:column;gap:17px;overflow:auto;min-height:0;font-size:12px;align-items:flex-start}
+.file-source-settings label{display:flex;align-items:center;gap:12px;width:100%}.file-source-settings label>span{min-width:0;flex:1;display:grid;grid-template-columns:20px 1fr;column-gap:8px}
+.file-source-settings label svg{width:18px;height:18px;stroke:currentColor;stroke-width:1.6;fill:none}.file-source-settings label b{font-weight:500}
+.file-source-settings label small{display:block;font-size:11px;color:var(--cds-text-muted);overflow-wrap:anywhere;grid-column:2;margin-top:3px}
+.file-source-settings input{accent-color:var(--cds-blue)}
+.file-model-state{border-top:1px solid var(--cds-border);width:100%;padding-top:17px;display:flex;gap:10px;flex-direction:column;align-items:flex-start}
+.file-model-state b{font-weight:500}.file-model-state small{font-size:11px;color:var(--cds-text-muted)}
+.file-source-error{font-size:11px;color:var(--cds-yellow);margin:0;overflow-wrap:anywhere}
+:root[data-window-mode=sidebar] body,:root[data-window-mode=horizontal] body{padding:0!important;background:var(--cds-surface-1)}
+:root[data-window-mode=sidebar] .studio-shell{grid-template-columns:64px minmax(0,1fr);border:0;border-radius:0}
+:root[data-window-mode=sidebar] .app-rail,:root[data-window-mode=sidebar] .workspace-pane,:root[data-window-mode=horizontal] .app-rail,:root[data-window-mode=horizontal] .workspace-pane{display:none}
+:root[data-window-mode=sidebar] .side-header,:root[data-window-mode=horizontal] .side-header{height:60px;flex-basis:60px;padding:12px 0}
+:root[data-window-mode=sidebar] .studio-sidebar{grid-column:1}.file-peek:not([hidden]){grid-column:2;grid-row:1}
+:root[data-window-mode=sidebar] .toast,:root[data-window-mode=horizontal] .toast{position:fixed;left:70px;right:12px;bottom:15px;z-index:30}
+:root[data-window-mode=horizontal] .studio-shell{display:flex;flex-direction:column-reverse;border:0;border-radius:0}
+:root[data-window-mode=horizontal] .studio-sidebar{height:64px;flex:0 0 64px;display:flex;flex-direction:row;border-top:1px solid var(--cds-border);border-right:0;overflow:auto}
+:root[data-window-mode=horizontal] .side-header{width:60px;flex:0 0 60px;border-bottom:0;border-right:1px solid var(--cds-border)}
+:root[data-window-mode=horizontal] .side-command{margin:13px 8px;flex:0 0 38px}
+:root[data-window-mode=horizontal] .side-tree{display:flex;flex-direction:row;overflow:visible;min-width:max-content}
+:root[data-window-mode=horizontal] .side-group{display:flex;padding:10px 8px;gap:4px;border-top:0;border-left:1px solid var(--cds-border)}
+:root[data-window-mode=horizontal] .side-group-content{display:flex!important;gap:4px}
+:root[data-window-mode=horizontal] .side-item,:root[data-window-mode=horizontal] .nav-project-row{width:40px;min-width:40px;height:40px}
+:root[data-window-mode=horizontal] .nav-project-row>.side-item{padding-right:0}
+:root[data-window-mode=horizontal] .file-peek{width:100%;flex:1;border-left:0;border-bottom:1px solid var(--cds-border)}
+@media(max-width:760px){:root[data-window-mode=workspace] .studio-shell{grid-template-columns:64px 220px minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.studio-shell{transition:none}}

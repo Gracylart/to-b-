@@ -10,27 +10,78 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="skins/apple.css">
   <link rel="stylesheet" href="skins/studio.css">
+  <link rel="stylesheet" href="skins/studio-files.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
+<svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 32 32"><path fill="currentColor" stroke="none" d="M16 3 2 10.2 16 17.4l14-7.2L16 3Z"/><path d="M3 15.1 16 21.8l13-6.7M3 20.5 16 27.2l13-6.7"/></symbol>
+  <symbol id="home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5V10Z"/><path d="M9 20v-6.5h6V20"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0v4c0 1.8-1 2.8-2 4h16c-1-1.2-2-2.2-2-4V9ZM9 19.5a3.2 3.2 0 0 0 6 0"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><rect x="2.5" y="3.5" width="19" height="17" rx="7"/><circle cx="8" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16" cy="12" r=".6" fill="currentColor"/></symbol>
+  <symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 9h18M8 12.5h8M8 16h8"/></symbol>
+  <symbol id="person" viewBox="0 0 24 24"><circle cx="10" cy="7.5" r="4"/><path d="M2.8 19c.6-3.5 3.4-5 7.2-5 3.7 0 6.4 1.5 7 5M20 7h1M20 11h1M20 15h1"/></symbol>
+  <symbol id="puzzle" viewBox="0 0 24 24"><path d="M5 3h5.3a2.7 2.7 0 1 1 5.4 0H21v6h-2a2.7 2.7 0 1 0 0 5.4h2V21h-6.2v-2a2.7 2.7 0 1 0-5.4 0v2H5v-6H3a2.7 2.7 0 1 1 0-5.4h2V3Z"/></symbol>
+  <symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+  <symbol id="account" viewBox="0 0 24 24"><path d="M12 2.5 20 7v10l-8 4.5L4 17V7l8-4.5Z"/><circle cx="12" cy="9" r="2.4"/><path d="M7.8 17c.5-2.1 2-3.2 4.2-3.2s3.7 1.1 4.2 3.2"/></symbol>
+  <symbol id="sliders" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="8" cy="6" r="2" fill="#080a0e"/><circle cx="16" cy="12" r="2" fill="#080a0e"/><circle cx="10" cy="18" r="2" fill="#080a0e"/></symbol>
+  <symbol id="panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M10 3v18"/></symbol>
+  <symbol id="command" viewBox="0 0 24 24"><path d="M9 7a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v10a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V7Z"/></symbol>
+  <symbol id="updates" viewBox="0 0 24 24"><path d="M14 5.4 8 9.2l-2.7-.6-2.1 4.3 2.2 1.5 1.7 3.3 2.6-.7 4.4 2.3 2.3-3.4c.9-1.4 1.7-3 1.8-5l.1-5.9-4.3.4Z"/><path d="m8 17 1.4 3.3h2.2l.4-2.4M17 5l2-2m1.5 3H23"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M5 4h14l2 9v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6l2-9Z"/><path d="M3 13h5l1.5 2h5l1.5-2h5M12 5.5v6m-2.5-2.4L12 11.6l2.5-2.5"/></symbol>
+  <symbol id="tasks" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="18" rx="3"/><path d="M9 3h6v3H9zM8 11h8M8 15h8M8 19h6"/></symbol>
+  <symbol id="clipboard" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="18" rx="3"/><path d="M9 3h6v3H9zM8 13l2.5 2.5 5-5"/></symbol>
+  <symbol id="views" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18M3 12h18"/></symbol>
+  <symbol id="team" viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M2.5 19c.6-3.5 3.5-5 7.5-5s7 1.5 7.5 5M20 6h1M20 10h1M20 14h1"/></symbol>
+  <symbol id="chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="project-blue" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="4" fill="#317df3" stroke="none"/><path d="M2 9h20M7 6h1M11 6h1" stroke="#102850"/></symbol>
+  <symbol id="project-pink" viewBox="0 0 24 24"><path fill="#d347d4" stroke="none" d="M4 2h16a2 2 0 0 1 2 2v15a2 2 0 0 1-2 2h-8l-5 2v-2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M7 7h10M7 11h10M7 15h7" stroke="#381039"/></symbol>
+  <symbol id="project-green" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" fill="#37c967" stroke="none"/><path d="M12 2v20M2 12h20" stroke="#103a1c"/></symbol>
+  <symbol id="project-orange" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" fill="#f28526" stroke="none"/><path d="M8 7v10M12 6v12M16 7v10" stroke="#4b2510"/></symbol>
+  <symbol id="project-cyan" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="4" fill="#26afe4" stroke="none"/><path d="M2 8h20M7 5.5h3M2 14h20" stroke="#10364a"/></symbol>
+</svg>
   <main class="studio-shell" id="shell" aria-label="文案审核台 Studio">
+    <aside class="app-rail rail" aria-label="应用导航">
+        <div class="rail-logo" aria-hidden="true"><svg class="logo"><use href="#logo"/></svg></div>
+        <nav class="rail-nav" aria-label="Navigation">
+          <button class="rail-button selected" aria-label="项目总览" title="项目总览" data-rail-action="home" aria-pressed="true"><svg><use href="#home"/></svg></button>
+          <button class="rail-button" aria-label="搜索项目文件" title="搜索项目文件" data-rail-action="search" aria-pressed="false"><svg><use href="#search"/></svg></button>
+          <button class="rail-button" aria-label="待确认文件" title="待确认文件" data-rail-action="pending" aria-pressed="false"><svg><use href="#bell"/></svg></button>
+          <button class="rail-button" aria-label="项目文件" title="项目文件" data-rail-action="files" aria-pressed="false"><svg><use href="#folder"/></svg></button>
+
+          <button class="rail-button" aria-label="审核流程" title="审核流程" data-rail-action="review" aria-pressed="false"><svg><use href="#calendar"/></svg></button>
+
+
+        </nav>
+        <div class="rail-bottom">
+          <button class="rail-button" aria-label="切换主题" title="切换主题" data-rail-action="theme"><svg><use href="#sun"/></svg></button>
+
+          <button class="rail-button" aria-label="文件来源设置" title="文件来源设置" data-rail-action="settings"><svg><use href="#sliders"/></svg></button>
+
+        </div>
+      </aside>
     <aside class="studio-sidebar" id="studioSidebar" aria-label="工作区导航">
       <header class="side-header">
-        <button class="collapse-button" id="collapseSidebar" aria-label="收起侧边栏" aria-controls="studioSidebar" title="收起侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+        <button class="collapse-button" id="collapseSidebar" aria-label="收起侧边栏" aria-controls="studioSidebar" title="切换文件侧栏 · 右键选择方向"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
       </header>
       <button class="side-command" id="openCommand" title="搜索项目或文档 · / 或 ⌘ K" aria-label="搜索项目或文档"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v10a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V7Z"/></svg><span>搜索</span><kbd>/</kbd></button>
       <nav class="side-tree" id="sideTree" aria-label="当前分组"></nav>
     </aside>
 
+    <section class="file-peek" id="filePeek" aria-label="项目文件" hidden></section>
     <section class="workspace-pane">
       <header class="workspace-header">
         <button class="side-reveal" id="revealSidebar" aria-label="展开侧边栏" aria-controls="studioSidebar" title="展开侧栏"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 7 5 5-5 5M5 4h14v16H5z"/></svg></button>
         <div class="breadcrumb" id="breadcrumb"><b>总览</b></div>
       </header>
       <div id="viewRoot" class="view-root"></div>
-      <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </section>
   </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <dialog id="dialog" aria-labelledby="dialogTitle"><div class="dialog-head"><h2 id="dialogTitle"></h2><button class="icon-button" id="closeDialog" aria-label="关闭弹窗">×</button></div><div id="dialogBody"></div></dialog>
   <input id="fileInput" type="file" accept=".txt,.md,.csv,.json" multiple hidden>
 </body>

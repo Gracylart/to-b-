@@ -5,6 +5,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Only specific, validated messages cross the isolated renderer boundary.
 contextBridge.exposeInMainWorld('reviewDesktop', Object.freeze({
   isDesktop: true,
+  files(action,payload={}) {
+    if(!['snapshot','catalog','scan','choose-root','toggle-root','open','reveal','assign','borrow','model-start'].includes(action))return Promise.reject(new Error('Unsupported file action'));
+    return ipcRenderer.invoke('review:files',action,payload);
+  },
+  layout(value){return ipcRenderer.invoke('review:layout',value);},
+  onLayout(callback){const listener=(_event,value)=>callback(value);ipcRenderer.on('review:layout',listener);return()=>ipcRenderer.removeListener('review:layout',listener);},
+  onFilesChanged(callback){const listener=(_event,value)=>callback(value);ipcRenderer.on('review:files-changed',listener);return()=>ipcRenderer.removeListener('review:files-changed',listener);},
   copyCode(code){return ipcRenderer.invoke('review:copy-code',code);},
   pdf(action,payload={}) {
     if(!['list','sample','import','report','revise','open','folder'].includes(action))return Promise.reject(new Error('Unsupported PDF action'));

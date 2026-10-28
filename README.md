@@ -1,5 +1,7 @@
 # 文案审核台 · Review Desk
 
+Studio 1.2.0 在已有侧栏桌面应用中加入本地项目文件归集。支持完整工作区、64 px 竖向文件栏与横向图标条；收起时点击项目图标即可查看和打开真实项目文件。桌面、下载目录默认监听，项目总目录从文件来源设置选择。PDF 变更稿按物料聚合，Excel 按阶段归集，借用文件保留原项目与引用关系；原文件位置不变。详见 [项目文件归集与本机模型说明](docs/project-file-integration.md)。
+
 面向多项目文案工作的 macOS 菜单栏应用，采用默认 365 × 760、可拖动边缘调整宽高的玻璃质感窗口。支持项目规划、文案导入与编辑、8 项本地规则预检，以及随检查阶段推进的方块阵列、粒子、日志和进度动效。
 
 [设计原型 · Figma](https://www.figma.com/design/IBHECNJfQK2Dymy3CLCZAV/Codex-Dynamic-Workflow?node-id=173-2234) · [项目源码 · GitHub](https://github.com/Gracylart/to-b-) · [原始动效示例](https://codex-workflow-gracy.blush-tetra-1726.chatgpt.site/)
