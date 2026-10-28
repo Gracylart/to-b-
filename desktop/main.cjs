@@ -8,7 +8,9 @@ const {
   isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds, sanitizeWindowSize
 } = require('./policy.cjs');
 
-const APP_NAME = '文案审核台';
+const { compactBounds, createEdgeDock } = require('./edge-dock.cjs');
+
+const APP_NAME = '文案审核台 · Studio';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
 let windowSize = sanitizeWindowSize();
@@ -26,9 +28,19 @@ let nativeSheetDepth = 0;
 let pickerActive = false;
 let pickerTimer;
 let blurTimer;
+let projectFiles;
+let fileModel;
+let fileLibraryLoading;
+let nativeLayout = {mode:'sidebar',peek:false,autoHide:true,edge:'right'};
+let edgeDock;
+let rendererBusy = false;
+let lastCompactMode='sidebar';
 
 app.setName(APP_NAME);
-app.setAppUserModelId('com.gracylart.copyreviewdesk');
+app.setAppUserModelId('com.gracylart.copyreviewdesk.studio');
+const profilePath = path.join(app.getPath('appData'), APP_NAME);
+fs.mkdirSync(profilePath, { recursive: true });
+app.setPath('userData', profilePath);
 
 function preferencePath() {
   return path.join(app.getPath('userData'), 'preferences.json');
@@ -43,6 +55,15 @@ function loadPreferences() {
   try {
     windowSize = sanitizeWindowSize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window-size.json'), 'utf8')));
   } catch { windowSize = sanitizeWindowSize(); }
+  try {
+    const saved=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'native-layout.json'),'utf8'));
+    if(['sidebar','horizontal'].includes(saved.mode))nativeLayout.mode=saved.mode;
+    nativeLayout.autoHide=saved.autoHide!==false;
+    nativeLayout.edge=saved.edge==='left'?'left':'right';
+    lastCompactMode=saved.compactMode==='horizontal'?'horizontal':saved.mode==='horizontal'?'horizontal':'sidebar';
+    // The application launches as a dock. It never restores a separate normal workspace window.
+    nativeLayout.mode=lastCompactMode;
+  } catch {}
   // The OS is authoritative, including changes made in System Settings.
   if (app.isPackaged && process.platform === 'darwin') {
     preferences.launchAtLogin = app.getLoginItemSettings().openAtLogin;
@@ -70,47 +91,100 @@ function updatePreferences(value) {
   }
   preferences = next;
   savePreferences();
-  if (panel && !panel.isDestroyed()) panel.setAlwaysOnTop(preferences.pinned, 'floating');
+  if (panel && !panel.isDestroyed()) panel.setAlwaysOnTop(true, 'floating');
   return { ...preferences };
 }
 
 function positionPanel() {
-  if (!panel || panel.isDestroyed()) return;
-  const bounds = tray?.getBounds() || { x: 0, y: 0, width: 0, height: 0 };
-  const display = bounds.width > 0 ? screen.getDisplayMatching(bounds) : screen.getPrimaryDisplay();
-  panel.setBounds(panelBounds(bounds, display.workArea, windowSize), false);
+  if(panel&&!panel.isDestroyed())applyNativeLayout();
 }
 
+function layoutArea() {
+  return screen.getDisplayMatching(panel?.getBounds?.()||{x:0,y:0,width:1,height:1}).workArea;
+}
+function applyNativeLayout() {
+  if(!panel||panel.isDestroyed())return nativeLayout;
+  const area=layoutArea();
+  panel.setMinimumSize(64,64);panel.setResizable(false);panel.setWindowButtonVisibility?.(false);panel.setAlwaysOnTop(true,'floating');
+  panel.setBounds(compactBounds(area,nativeLayout,windowSize),false);
+  panel.webContents.send('review:layout',{...nativeLayout});edgeDock?.sync();return {...nativeLayout};
+}
+function setNativeLayout(value={}) {
+  if(value.mode!==undefined&&!['sidebar','horizontal'].includes(value.mode))throw Error('无效窗口形态');
+  if(value.peek!==undefined&&typeof value.peek!=='boolean')throw Error('无效文件面板状态');
+  if(value.autoHide!==undefined&&typeof value.autoHide!=='boolean')throw Error('无效收起状态');
+  if(value.edge!==undefined&&!['left','right'].includes(value.edge))throw Error('无效屏幕边缘');
+  const previous=nativeLayout.mode;
+  nativeLayout={...nativeLayout,mode:value.mode||nativeLayout.mode,peek:value.peek??false,
+    autoHide:value.autoHide??nativeLayout.autoHide,edge:value.edge||nativeLayout.edge};
+  lastCompactMode=nativeLayout.mode;
+  const dest=path.join(app.getPath('userData'),'native-layout.json');
+  fs.writeFileSync(dest,JSON.stringify({mode:nativeLayout.mode,autoHide:nativeLayout.autoHide,edge:nativeLayout.edge,compactMode:lastCompactMode}),{mode:0o600});
+  applyNativeLayout();
+  if(previous!==nativeLayout.mode||value.autoHide!==undefined) {
+    if(nativeLayout.autoHide)edgeDock?.show(false);
+    else if(readyToShow)panel.show();
+  }
+  return {...nativeLayout};
+}
+function revealEdge(focus=false) {
+  if(!panel||panel.isDestroyed()||!readyToShow)return;
+  clearTimeout(blurTimer);applyNativeLayout();panel.showInactive();
+  if(focus){panel.show();app.focus?.({steal:true});panel.focus();}
+}
+function retractEdge() {
+  if(!panel||panel.isDestroyed())return;
+  panel.hide();rendererBusy=false;
+  if(nativeLayout.peek){nativeLayout.peek=false;applyNativeLayout();}
+}
+async function getFileLibrary(){
+  if(projectFiles)return projectFiles;
+  if(fileLibraryLoading)return fileLibraryLoading;
+  fileLibraryLoading=(async()=>{
+    const {ProjectFiles}=require('./project-files.cjs'),{LocalFileModel}=require('./local-file-model.cjs');
+    fileModel=new LocalFileModel(app.getPath('userData'));
+    projectFiles=await new ProjectFiles({directory:app.getPath('userData'),defaultRoots:[{path:app.getPath('desktop'),label:'桌面'},{path:app.getPath('downloads'),label:'下载'}],model:fileModel}).init();
+    projectFiles.on('change',change=>{if(panel&&!panel.isDestroyed())panel.webContents.send('review:files-changed',change);});
+    projectFiles.on('storage-error',error=>console.warn('File index save:',error));
+    projectFiles.scan().catch(error=>console.warn('File scan:',error.message));
+    fileModel.start().then(()=>{projectFiles.retryPending();projectFiles.changed();}).catch(error=>console.warn('Local model:',error.message));
+    return projectFiles;
+  })().finally(()=>{fileLibraryLoading=null;});return fileLibraryLoading;
+}
+
+function returnToDock() {
+  if(!panel||panel.isDestroyed()||quitting)return;
+  rendererBusy=false;
+  if(panel.isMinimized?.())panel.restore();
+  setNativeLayout({mode:lastCompactMode,peek:false,autoHide:true});
+  if(!edgeDock?.hide())panel.hide();
+  edgeDock?.sync();
+}
 function hidePanel() {
   if (!panel || panel.isDestroyed() || nativeSheetDepth > 0 || pickerActive) return;
+  rendererBusy=false;
+  if(edgeDock?.hide())return;
   panel.hide();
 }
 
 function showPanel(destination) {
   showRequested = true;
-  if (destination) pendingNavigation = destination;
+  if (destination) {pendingNavigation = destination;nativeLayout.peek=true;}
   if (!app.isReady()) return;
   if (!panel || panel.isDestroyed()) createPanel();
   if (!readyToShow) return;
   showRequested = false;
   clearTimeout(blurTimer);
+  if(panel.isMinimized?.())panel.restore();
   positionPanel();
   ignoreBlurUntil = Date.now() + 350;
-  panel.show();
+  if(!edgeDock?.show(true))panel.show();
+  app.focus?.({steal:true});
   panel.focus();
   if (pendingNavigation) {
     panel.webContents.send('review:navigate', pendingNavigation);
     pendingNavigation = undefined;
   }
-}
-
-function scheduleBlurHide() {
-  clearTimeout(blurTimer);
-  blurTimer = setTimeout(() => {
-    if (!panel || panel.isDestroyed() || panel.isFocused()) return;
-    if (preferences.pinned || nativeSheetDepth > 0 || pickerActive || Date.now() < ignoreBlurUntil) return;
-    panel.hide();
-  }, Math.max(180, ignoreBlurUntil - Date.now() + 30));
 }
 
 function updateTray() {
@@ -122,11 +196,14 @@ function updateTray() {
 
 function createTrayMenu() {
   return Menu.buildFromTemplate([
-    { label: '打开文案审核台', click: () => showPanel() },
+    { label: `打开${APP_NAME}`, click: () => showPanel() },
+    {label:'竖向文件侧栏',click:()=>{setNativeLayout({mode:'sidebar'});showPanel();}},
+    {label:'横向文件栏',click:()=>{setNativeLayout({mode:'horizontal'});showPanel();}},
+    {label:'自动收起文件栏',type:'checkbox',checked:nativeLayout.autoHide,click:item=>setNativeLayout({autoHide:item.checked})},
+    {label:'停靠位置',submenu:[{label:'屏幕右侧',type:'radio',checked:nativeLayout.edge==='right',click:()=>setNativeLayout({edge:'right'})},{label:'屏幕左侧',type:'radio',checked:nativeLayout.edge==='left',click:()=>setNativeLayout({edge:'left'})}]},
     { label: '项目总览', click: () => showPanel('home') },
     { label: '审核工作台', click: () => showPanel('review') },
     { type: 'separator' },
-    { label: '固定窗口', type: 'checkbox', checked: preferences.pinned, click: (item) => updatePreferences({ pinned: item.checked }) },
     {
       label: '开机启动',
       type: 'checkbox',
@@ -134,9 +211,9 @@ function createTrayMenu() {
       enabled: app.isPackaged && process.platform === 'darwin',
       click: (item) => updatePreferences({ launchAtLogin: item.checked })
     },
-    { label: '设置', click: () => showPanel('settings') },
+    { label: '文件来源设置', click: () => showPanel('settings') },
     { type: 'separator' },
-    { label: '退出文案审核台', accelerator: 'CommandOrControl+Q', click: () => app.quit() }
+    { label: `退出${APP_NAME}`, accelerator: 'CommandOrControl+Q', click: () => app.quit() }
   ]);
 }
 
@@ -160,9 +237,11 @@ function secureContents(contents) {
   contents.on('will-redirect', (event) => event.preventDefault());
   contents.on('will-attach-webview', (event) => event.preventDefault());
   contents.on('before-input-event', (event, input) => {
+    if(input.type==='keyDown'&&(process.platform==='darwin'?input.meta:input.control)&&['m','w'].includes(input.key?.toLowerCase())){event.preventDefault();if(input.key.toLowerCase()==='w')hidePanel();return;}
     if (input.type === 'keyDown' && input.key === 'Escape' && nativeSheetDepth === 0 && !pickerActive) {
+      if(rendererBusy)return;
       event.preventDefault();
-      hidePanel();
+      if(nativeLayout.peek)setNativeLayout({peek:false});else hidePanel();
     }
   });
   contents.on('page-title-updated', (event) => event.preventDefault());
@@ -170,27 +249,29 @@ function secureContents(contents) {
 
 function createPanel() {
   readyToShow = false;
+  const initialBounds=compactBounds(screen.getPrimaryDisplay().workArea,nativeLayout,windowSize);
   panel = new BrowserWindow({
-    ...windowSize,
-    minWidth: 340,
-    minHeight: 520,
-    maxWidth: 960,
+    ...initialBounds,
+    minWidth: 64,
+    minHeight: 64,
+    maxWidth: 1800,
     maxHeight: 1200,
     show: false,
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    vibrancy: 'hud',
+    type: 'panel',
+    transparent: false,
+    backgroundColor: '#0d0e10',
+    vibrancy: 'under-window',
     visualEffectState: 'active',
     title: APP_NAME,
     hasShadow: true,
     roundedCorners: true,
-    resizable: true,
+    resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    alwaysOnTop: preferences.pinned,
+    alwaysOnTop: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       sandbox: true,
@@ -204,35 +285,40 @@ function createPanel() {
     }
   });
   panel.setMenu(null);
+  panel.setWindowButtonVisibility?.(false);
+  panel.webContents.on('did-fail-load',(_event,code,description)=>console.error('Desktop load failed:',code,description));
+  panel.webContents.on('console-message',(event)=>{if(event.level==='error'||event.level===3)console.error('Desktop renderer:',event.message);});
+  if(process.env?.REVIEW_DESK_DIAGNOSTICS==='1'){
+    panel.webContents.on('dom-ready',()=>console.error('Desktop diagnostics: DOM ready'));
+    panel.webContents.on('did-finish-load',()=>console.error('Desktop diagnostics: page loaded'));
+    panel.on('ready-to-show',()=>console.error('Desktop diagnostics: ready to show'));
+  }
   secureContents(panel.webContents);
-  panel.on('resized', () => {
-    const [width, height] = panel.getSize();
-    windowSize = sanitizeWindowSize({ width, height });
-    const destination = path.join(app.getPath('userData'), 'window-size.json');
-    try {
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.writeFileSync(`${destination}.tmp`, JSON.stringify(windowSize), { mode: 0o600 });
-      fs.renameSync(`${destination}.tmp`, destination);
-    } catch (error) { console.warn('Cannot save window size:', error.message); }
-  });
-  panel.on('blur', scheduleBlurHide);
   panel.on('focus', () => clearTimeout(blurTimer));
+  panel.on('blur',()=>{rendererBusy=false;});
   panel.on('sheet-begin', () => { nativeSheetDepth += 1; clearTimeout(blurTimer); });
   panel.on('sheet-end', () => {
     nativeSheetDepth = Math.max(0, nativeSheetDepth - 1);
     pickerActive = false;
     clearTimeout(pickerTimer);
     ignoreBlurUntil = Date.now() + 400;
-    scheduleBlurHide();
   });
   panel.on('close', (event) => {
-    if (!quitting) { event.preventDefault(); hidePanel(); }
+    if (!quitting) { event.preventDefault();returnToDock(); }
   });
+  panel.on('minimize',event=>{if(!quitting){event?.preventDefault?.();returnToDock();}});
   panel.on('closed', () => { panel = undefined; readyToShow = false; });
-  panel.once('ready-to-show', () => {
+  const showInitialPanel=()=>{
+    if(readyToShow)return;
     readyToShow = true;
-    if (showRequested || pendingNavigation) showPanel();
-  });
+    applyNativeLayout();
+    if(showRequested||pendingNavigation)showPanel();else if(nativeLayout.autoHide)edgeDock?.sync();else showPanel();
+  };
+  panel.once('ready-to-show',showInitialPanel);
+  // Accessory applications may not produce their first hidden paint until
+  // activation. A fully loaded page is also safe to show; don't deadlock on
+  // ready-to-show when reopening an updated menu-bar application.
+  panel.webContents.once('did-finish-load',showInitialPanel);
   panel.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer stopped:', details.reason);
     status = { ...INITIAL_STATUS };
@@ -250,6 +336,36 @@ function trustedSender(event) {
 }
 
 function installIPC() {
+  ipcMain.on('review:edge-busy',(event,value)=>{if(trustedSender(event)&&typeof value==='boolean')rendererBusy=value;});
+  ipcMain.handle('review:layout',async(event,value)=>{
+    if(!trustedSender(event))throw Error('Untrusted sender');
+    if(value)edgeDock?.touch();
+    return value?setNativeLayout(value):{...nativeLayout};
+  });
+  ipcMain.handle('review:files',async(event,action,payload={})=>{
+    if(!trustedSender(event))throw Error('Untrusted sender');
+    if(!['snapshot','catalog','scan','toggle-root','choose-root','open','reveal','assign','borrow','model-start'].includes(action))throw Error('Unsupported file action');
+    if(!['snapshot','catalog'].includes(action))edgeDock?.touch();
+    const library=await getFileLibrary();
+    if(action==='snapshot')return library.snapshot();
+    if(action==='catalog'){library.setCatalog(payload.projects);return library.snapshot();}
+    if(action==='scan'){await library.scan();return library.snapshot();}
+    if(action==='toggle-root')return library.toggleRoot(payload.id,payload.enabled);
+    if(action==='choose-root'){
+      nativeSheetDepth++;
+      try{const source=payload.id?library.roots.find(root=>root.id===payload.id):null;const result=await dialog.showOpenDialog(panel,{title:source?'重新选择 '+source.label:'选择项目总目录',defaultPath:source?.path,properties:['openDirectory']});if(result.canceled)return library.snapshot();return library.addRoot(result.filePaths[0]);}
+      finally{nativeSheetDepth=Math.max(0,nativeSheetDepth-1);}
+    }
+    if(action==='open'||action==='reveal'){
+      const target=await library.resolve(payload.id);
+      if(action==='reveal'){shell.showItemInFolder(target);return true;}
+      const error=await shell.openPath(target);if(error)throw Error(error);return true;
+    }
+    if(action==='assign')return library.assign(payload.id,payload.code);
+    if(action==='borrow')return library.linkBorrowed(payload.id,payload.code);
+    if(action==='model-start'){await fileModel.start();library.retryPending();return library.snapshot();}
+    throw Error('Unsupported file action');
+  });
   ipcMain.handle('review:copy-code', async (event, code) => {
     if(!trustedSender(event)||typeof code!=='string'||!/^\d{1,100}$/.test(code))return false;
     await clipboard.writeText(code);return true;
@@ -303,7 +419,6 @@ function installIPC() {
       pickerTimer = setTimeout(() => { pickerActive = false; }, 120000);
     } else {
       ignoreBlurUntil = Date.now() + 400;
-      scheduleBlurHide();
     }
   });
 }
@@ -333,19 +448,26 @@ if (!app.requestSingleInstanceLock()) {
       else showPanel();
     });
     tray.on('right-click', () => tray.popUpContextMenu(createTrayMenu()));
+    Menu.setApplicationMenu?.(Menu.buildFromTemplate([{label:APP_NAME,submenu:[{label:'显示侧栏',click:()=>showPanel()},{label:'文件来源设置',click:()=>showPanel('settings')},{type:'separator'},{role:'quit'}]},{role:'editMenu'}]));
     createPanel();
-    screen.on('display-metrics-changed', () => { if (panel?.isVisible()) positionPanel(); });
-    screen.on('display-removed', () => { if (panel?.isVisible()) positionPanel(); });
+    edgeDock=createEdgeDock({BrowserWindow,screen,ipcMain,getPanel:()=>panel,getLayout:()=>nativeLayout,getArea:layoutArea,held:()=>nativeSheetDepth>0||pickerActive||rendererBusy,reveal:revealEdge,retract:retractEdge});
+    edgeDock.sync();
+    getFileLibrary().catch(error=>console.warn('File library:',error.message));
+    screen.on('display-metrics-changed', () => { positionPanel();edgeDock?.sync(); });
+    screen.on('display-removed', () => { positionPanel();edgeDock?.sync(); });
     app.on('activate', () => showPanel());
   }).catch((error) => {
     console.error('Cannot initialize review desk:', error.message);
     app.quit();
   });
   app.on('window-all-closed', () => {});
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if(!quitting&&projectFiles){event.preventDefault();quitting=true;edgeDock?.close();edgeDock=undefined;fileModel?.stop();projectFiles.close().finally(()=>app.quit());return;}
     quitting = true;
     clearTimeout(blurTimer);
     clearTimeout(pickerTimer);
+    edgeDock?.close();edgeDock=undefined;
     tray?.destroy();
+    fileModel?.stop();
   });
 }

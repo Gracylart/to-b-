@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#1b1d1e">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>桌面预览 · 文案审核台 Studio</title>
+  <link rel="icon" href="assets/app-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="preview.css">
+  <script type="module" src="preview.js"></script>
+</head>
+<body>
+  <main class="desktop-stage" id="desktopStage" aria-label="桌面版预览">
+    <div class="window-footprint" id="windowFootprint">
+      <section class="desktop-window" id="desktopWindow" aria-label="应用窗口">
+        <iframe id="appFrame" src="./index.html?preview=desktop" title="审核工作区" allow="clipboard-write"></iframe>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

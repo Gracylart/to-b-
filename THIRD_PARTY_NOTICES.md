@@ -4,6 +4,7 @@
 
 ## 设计与动效来源
 
+- Studio 版的语义化 Surface 0–3、控件尺寸、焦点环、非线性滚动遮罩与动效曲线参考 [Caho1 / open-claude-ui](https://github.com/Caho1/open-claude-ui) 的纯 CSS 与逻辑规范，并针对本产品改为蓝色审核视觉。该项目采用 MIT 许可；本应用未引入其专有字体或二进制资产。
 - 用户提供的 [Figma Glass Shell A / B / C 原型](https://www.figma.com/design/IBHECNJfQK2Dymy3CLCZAV/Codex-Dynamic-Workflow?node-id=173-2234) 为界面设计依据。`dist/assets/figma/` 保存从该文件获取的设计资源；本声明不将设计文件及其中品牌标识重新许可为 MIT。
 - 原始 Codex Dynamic Workflow 动效来自用户的 [Gracylart / to-b- 仓库](https://github.com/Gracylart/to-b-)，对应原始提交 `ad01e19816fb4c141905aeb7ded460f9c64091af` 和[原始在线演示](https://codex-workflow-gracy.blush-tetra-1726.chatgpt.site/)。原演示保留于 `dist/reference/`。
 - 菜单栏窗口形态及交互行为参考 [Javis603 / Token Monitor](https://github.com/Javis603/token-monitor)。其 [MIT 许可](https://github.com/Javis603/token-monitor/blob/main/LICENSE) 版权信息为 `Copyright (c) 2026 Javis`。本应用独立实现菜单栏壳、审核规则与交互；菜单栏的方块加校对标识为本项目生成的原创图标。
@@ -30,9 +31,12 @@ SF Pro 及其他 macOS 系统字体由操作系统提供，不包含在本项目
 
 ## MIT 许可
 
-以下许可分别适用于 Token Monitor、Electron 和 electron-builder，其版权声明分别为：
+以下许可分别适用于 open-claude-ui、Token Monitor、Electron 和 electron-builder，其版权声明分别为：
 
 ```text
+open-claude-ui:
+Copyright (c) Caho1 contributors
+
 Token Monitor:
 Copyright (c) 2026 Javis
 
@@ -170,3 +174,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 - pdf-lib and @pdf-lib/fontkit: MIT; license files included with their packaged modules.
 - pdfjs-dist: Apache-2.0; license included with packaged module.
 - Noto Sans SC: SIL Open Font License 1.1. Copyright and full license: dist/assets/pdf/OFL.txt. Source: https://github.com/google/fonts/tree/main/ofl/notosanssc .
+# Studio 本地项目文件归集补充
+
+- SheetJS Community Edition 0.20.3，Apache-2.0，来源为官方 CDN `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`。版权与完整许可保留在随应用打包的 `node_modules/xlsx/LICENSE` 中。
+- 本机独立安装的 Ollama v0.40.11（MIT）和 Qwen3-0.6B（Apache-2.0）不随应用二进制重复分发。安装来源、权重校验值和本机存放位置见 `docs/project-file-integration.md`。
+
+## 原生文件监听
+
+使用 [@parcel/watcher 2.6.0](https://github.com/parcel-bundler/watcher)（MIT）及其 darwin-arm64 原生模块，许可原文随依赖包保留。Copyright (c) 2017-present Devon Govett。macOS 使用 FSEvents 后端，在独立进程中订阅目录树的变更。

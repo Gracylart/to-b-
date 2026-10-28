@@ -121,8 +121,8 @@ test('panel stays inside normal and small work areas, including negative display
     assert.ok(result.y >= area.y + 8);
     assert.ok(result.x + result.width <= area.x + area.width - 8);
     assert.ok(result.y + result.height <= area.y + area.height - 8);
-    assert.ok(result.width > 0 && result.width <= 365);
-    assert.ok(result.height > 0 && result.height <= 760);
+    assert.ok(result.width > 0 && result.width <= 1200);
+    assert.ok(result.height > 0 && result.height <= 800);
     assert.ok(Number.isInteger(result.x) && Number.isInteger(result.y));
   }
 });
@@ -130,7 +130,7 @@ test('panel stays inside normal and small work areas, including negative display
 test('panel centers below the tray and clamps an oversized requested window', () => {
   assert.deepEqual(
     panelBounds({ x: 600, y: 0, width: 80, height: 24 }, { x: 0, y: 24, width: 1440, height: 1000 }),
-    { x: 458, y: 32, width: 365, height: 760 },
+    { x: 40, y: 32, width: 1200, height: 800 },
   );
   assert.deepEqual(
     panelBounds({ x: 0, y: 0, width: 0, height: 0 }, { x: 100, y: 100, width: 400, height: 300 }, { width: 900, height: 1200 }),
@@ -160,7 +160,7 @@ test('CSP blocks network, script injection, frames, plugins, and form submission
 // Execute the actual main-process wiring with Electron and disk I/O replaced.
 // This checks trust decisions at the IPC handlers, without starting a GUI or
 // changing the host's preferences, login items, files, or browser.
-async function mainHarness() {
+async function mainHarness(savedLayout) {
   const invocations = new Map();
   const ipcMain = new EventEmitter();
   ipcMain.handle = (name, callback) => invocations.set(name, callback);
@@ -168,6 +168,8 @@ async function mainHarness() {
   const trays = [];
   const opened = [];
   const writes = [];
+  const reads = [];
+  const appPaths = new Map([['appData', '/virtual/app-data'], ['userData', '/virtual/review-desk']]);
   let loginAtStartup = false;
 
   class MockContents extends EventEmitter {
@@ -184,6 +186,7 @@ async function mainHarness() {
       this.options = options;
       this.webContents = new MockContents();
       this.hideCount = 0;
+      this.showCount = 0;
       windows.push(this);
     }
     isDestroyed() { return false; }
@@ -193,13 +196,21 @@ async function mainHarness() {
       this.webContents.mainFrame.url = `${pathToFileURL(file).href}?desktop=${options.query.desktop}`;
       return Promise.resolve();
     }
-    hide() { this.hideCount += 1; }
+    hide() { this.hideCount += 1;this.visible=false; }
+    show() { this.showCount += 1;this.visible=true; }
+    isVisible(){return !!this.visible;}
+    focus() {}
+    setBounds(bounds) {this.bounds=bounds;}
+    getBounds(){return this.bounds||this.options;}
+    setMinimumSize(){}setResizable(){}setWindowButtonVisibility(){}
+    isMinimized(){return !!this.minimized;}restore(){this.minimized=false;this.restoreCount=(this.restoreCount||0)+1;}
   }
   class MockTray extends EventEmitter {
     constructor() { super(); trays.push(this); }
     isDestroyed() { return false; }
     setTitle(title) { this.title = title; }
     setToolTip() {}
+    getBounds() {return {x:0,y:0,width:0,height:0};}
     destroy() {}
   }
   const app = new EventEmitter();
@@ -209,8 +220,10 @@ async function mainHarness() {
     setName() {},
     setAppUserModelId() {},
     requestSingleInstanceLock: () => true,
+    isReady: () => true,
     whenReady: () => Promise.resolve(),
-    getPath: () => '/virtual/review-desk',
+    getPath: name => appPaths.get(name) || '/virtual/review-desk',
+    setPath: (name, value) => appPaths.set(name, value),
     getLoginItemSettings: () => ({ openAtLogin: loginAtStartup }),
     setLoginItemSettings: value => { loginAtStartup = value.openAtLogin; },
     quit() {},
@@ -227,8 +240,10 @@ async function mainHarness() {
       webRequest: { onHeadersReceived() {} },
     } },
   };
+  electron.screen.getPrimaryDisplay=()=>({workArea:{x:0,y:24,width:1600,height:1000}});
+  electron.screen.getDisplayMatching=electron.screen.getPrimaryDisplay;
   const disk = {
-    readFileSync() { throw new Error('No saved preferences'); },
+    readFileSync(file) { reads.push(file);if(savedLayout&&file.endsWith('native-layout.json'))return JSON.stringify(savedLayout); throw new Error('No saved preferences'); },
     mkdirSync() {},
     writeFileSync: (...args) => writes.push(args),
     renameSync() {},
@@ -240,6 +255,9 @@ async function mainHarness() {
       if (name === 'node:path') return path;
       if (name === 'node:fs') return disk;
       if (name === './policy.cjs') return policy;
+      if(name==='./edge-dock.cjs')return {...require('../desktop/edge-dock.cjs'),createEdgeDock:()=>({sync(){},show(){return false;},hide(){return false;},touch(){},close(){}})};
+      if(name==='./project-files.cjs')return {ProjectFiles:class{async init(){throw Error('No file library in wiring test');}}};
+      if(name==='./local-file-model.cjs')return {LocalFileModel:class{}};
       throw new Error(`Unexpected dependency: ${name}`);
     },
     __dirname: desktopPath,
@@ -252,7 +270,7 @@ async function mainHarness() {
   assert.equal(windows.length, 1, 'The main-process setup must succeed');
   const panel = windows[0];
   const trustedEvent = () => ({ sender: panel.webContents, senderFrame: panel.webContents.mainFrame });
-  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, trustedEvent };
+  return { panel, tray: trays[0], invocations, ipcMain, opened, writes, reads, appPaths, trustedEvent };
 }
 
 test('actual IPC handlers reject unrelated senders, child frames, and missing frames', async () => {
@@ -269,6 +287,8 @@ test('actual IPC handlers reject unrelated senders, child frames, and missing fr
     ipcMain.emit('review:hide', event);
     assert.throws(() => invocations.get('review:preferences:get')(event), /Untrusted sender/);
     assert.throws(() => invocations.get('review:preferences:set')(event, { pinned: true }), /Untrusted sender/);
+    await assert.rejects(invocations.get('review:files')(event,'snapshot'),/Untrusted sender/);
+    await assert.rejects(invocations.get('review:layout')(event,{mode:'sidebar'}),/Untrusted sender/);
   }
   assert.equal(tray.title, '审核台');
   assert.equal(panel.hideCount, 0);
@@ -280,6 +300,12 @@ test('actual IPC handlers reject unrelated senders, child frames, and missing fr
   invocations.get('review:preferences:set')(trustedEvent(), { pinned: true, command: 'ignored' });
   assert.equal(writes.length, 1);
   assert.deepEqual(JSON.parse(writes[0][1]), { pinned: true, launchAtLogin: false });
+});
+
+test('loaded sidebar can be revealed without waiting for a hidden native paint',async()=>{
+ const {panel,tray}=await mainHarness();assert.equal(panel.showCount,0);
+ panel.webContents.emit('did-finish-load');tray.emit('click');assert.equal(panel.showCount,1);assert.equal(panel.bounds.width,64);
+ panel.emit('ready-to-show');assert.equal(panel.showCount,1);
 });
 
 test('a navigated main frame loses all IPC privileges until the trusted document returns', async () => {
@@ -377,7 +403,7 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
     clearTimeout() {},
   }, { filename: 'desktop/preload.cjs' });
   assert.deepEqual(Object.keys(exposed).sort(), [
-    'copyCode', 'getPreferences', 'hide', 'isDesktop', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
+    'copyCode', 'files', 'getPreferences', 'hide', 'isDesktop', 'layout', 'onFilesChanged', 'onLayout', 'onNavigate', 'pdf', 'setPinned', 'setPreferences', 'updateStatus',
   ]);
   assert.ok(Object.isFrozen(exposed));
   exposed.updateStatus({ state: 'invalid', progress: 2, issues: 0 });
@@ -403,16 +429,55 @@ test('preload exposes only narrow IPC methods and never leaks an Electron event 
   assert.equal(received.length, 1);
   exposed.hide();
   assert.deepEqual(sent[1], ['review:hide']);
+  await assert.rejects(exposed.files('delete'),/Unsupported/);
+  const fileEvents=[],layoutEvents=[];
+  const offFiles=exposed.onFilesChanged(value=>fileEvents.push(value));
+  const offLayout=exposed.onLayout(value=>layoutEvents.push(value));
+  ipcRenderer.emit('review:files-changed',privateElectronEvent,{revision:2});
+  ipcRenderer.emit('review:layout',privateElectronEvent,{mode:'sidebar'});
+  assert.deepEqual(fileEvents,[{revision:2}]);assert.deepEqual(layoutEvents,[{mode:'sidebar'}]);
+  offFiles();offLayout();
 });
 
 test('saved window dimensions are bounded and restored independently', () => {
-  assert.deepEqual(policy.sanitizeWindowSize(), { width: 365, height: 760 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: 520, height: 680 }), { width: 520, height: 680 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: Infinity, height: '800' }), { width: 365, height: 760 });
-  assert.deepEqual(policy.sanitizeWindowSize({ width: 20, height: 9000 }), { width: 340, height: 1200 });
+  assert.deepEqual(policy.sanitizeWindowSize(), { width: 1200, height: 800 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 520, height: 680 }), { width: 640, height: 680 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: Infinity, height: '800' }), { width: 1200, height: 800 });
+  assert.deepEqual(policy.sanitizeWindowSize({ width: 20, height: 9000 }), { width: 640, height: 1200 });
   const desired = policy.sanitizeWindowSize({ width: 540, height: 650 });
   const bounds = panelBounds({ x: 1400, y: 0, width: 40, height: 24 }, { x: 0, y: 24, width: 1440, height: 876 }, desired);
-  assert.equal(bounds.width, 540);
+  assert.equal(bounds.width, 640);
   assert.equal(bounds.height, 650);
   assert.ok(bounds.x + bounds.width <= 1432);
+});
+
+
+test('desktop acceptance profile never reads or writes the original user data', async () => {
+  const { reads, writes, appPaths, invocations, trustedEvent } = await mainHarness();
+  const profile = appPaths.get('userData');
+  assert.notEqual(profile, '/virtual/review-desk');
+  assert.equal(path.dirname(profile), '/virtual/app-data');
+  assert.ok(reads.length > 0);
+  assert.ok(reads.every(file => file.startsWith(profile + path.sep)));
+  invocations.get('review:preferences:set')(trustedEvent(), { pinned: true });
+  assert.ok(writes.length > 0);
+  assert.ok(writes.every(([file]) => file.startsWith(profile + path.sep)));
+});
+
+test('cold compact startup creates the saved dimensions before loading and leaves auto-hide concealed',async()=>{
+ for(const mode of ['sidebar','horizontal']){
+ const {panel}=await mainHarness({mode,edge:'right',autoHide:true});
+ assert.equal(panel.options.width,mode==='sidebar'?64:620);assert.equal(panel.options.minWidth,64);assert.equal(panel.options.resizable,false);
+ panel.webContents.emit('did-finish-load');assert.equal(panel.showCount,0);
+ assert.equal(panel.bounds.width,mode==='sidebar'?64:620);
+ }
+});
+
+test('only frameless sidebar layouts are available, including recovery from old workspace preferences',async()=>{
+ const {panel,invocations,trustedEvent}=await mainHarness({mode:'workspace',compactMode:'horizontal'});
+ assert.equal(panel.options.frame,false);assert.equal(panel.options.type,'panel');
+ for(const option of ['minimizable','maximizable','fullscreenable','resizable'])assert.equal(panel.options[option],false);
+ assert.equal(panel.options.width,620);await assert.rejects(invocations.get('review:layout')(trustedEvent(),{mode:'workspace'}),/无效窗口形态/);
+ panel.webContents.emit('did-finish-load');let prevented=false;panel.emit('close',{preventDefault(){prevented=true;}});assert.equal(prevented,true);
+ const layout=await invocations.get('review:layout')(trustedEvent());assert.equal(layout.mode,'horizontal');assert.equal(layout.peek,false);assert.equal(layout.autoHide,true);assert.ok(panel.hideCount>0);
 });

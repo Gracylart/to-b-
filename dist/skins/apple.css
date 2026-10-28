@@ -1,0 +1,393 @@
+/* Review Desk — Apple skin. Original CSS; design references in docs/apple-skin.md. */
+html[data-skin="apple"] {
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  --mono: "SF Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --text: #17283b;
+  --muted: #516276;
+  --faint: #586a7e;
+  --blue: #0865cf;
+  --mint: #0865cf;
+  --purple: #596bc4;
+  --green: #087887;
+  --yellow: #8d5a00;
+  --red: #b33346;
+  --line: #254b771a;
+  --border: #24496f29;
+  --control: #ffffffa3;
+  --apple-surface: #ffffffdc;
+  --apple-solid: #f4f8fc;
+  --apple-inset: #e7eef6;
+  --apple-hover: #0865cf0b;
+  --apple-selected: #e3efff;
+  --apple-shell: linear-gradient(155deg, #f8fbffef, #edf4fbea 62%, #e9f1f9ec);
+  --apple-rim: #ffffffd9;
+  --apple-shadow: 0 2px 4px #27436608, 0 18px 52px #27436618;
+  --apple-dialog: #f7faffed;
+  --apple-backdrop: #253d5533;
+  --apple-primary: #0865cf;
+  --apple-primary-ink: #fff;
+  --flow-color-0: #2265aa;
+  --flow-color-1: #126f82;
+  --flow-color-2: #5666ac;
+  --flow-color-3: #346e9a;
+  --flow-particle-ink: #164f88;
+  --flow-particle-glow: 2;
+  --flow-active-mix: #102d52;
+  --apple-ease: cubic-bezier(.22, 1, .36, 1);
+  font-size: 13px;
+  color-scheme: light;
+}
+html[data-skin="apple"].desktop { font-size: clamp(13px, calc(11px + .52vw), 15px); }
+html[data-skin="apple"] body {
+  color: var(--text);
+  font-family: var(--sans);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
+  background: radial-gradient(ellipse at 15% 0%, #f4faff 0%, transparent 58%), linear-gradient(125deg, #dce9f6, #c4d8ec);
+}
+html[data-skin="apple"].desktop body { background: transparent; }
+html[data-skin="apple"] :is(button, input, select, textarea) { font-family: var(--sans); }
+html[data-skin="apple"] :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+html[data-skin="apple"] :is(button, summary) { -webkit-tap-highlight-color: transparent; }
+html[data-skin="apple"] :is(.button, .icon-button, .project-switch, .view-tabs button) {
+  transition: transform 150ms var(--apple-ease), background-color 150ms var(--apple-ease), color 150ms var(--apple-ease);
+}
+html[data-skin="apple"] :is(.button, .icon-button, .project-switch):not(:disabled):active { transform: scale(.975); }
+html[data-skin="apple"] .glass-shell {
+  background: var(--apple-shell);
+  border: 1px solid var(--border);
+  border-radius: 1.55rem;
+  box-shadow: inset 0 1px 0 var(--apple-rim), var(--apple-shadow);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+}
+html[data-skin="apple"].desktop .glass-shell { background: var(--apple-shell); box-shadow: inset 0 1px 0 var(--apple-rim); }
+html[data-skin="apple"] .glass-shell::after { display: none; }
+html[data-skin="apple"].desktop .glass-shell::before { border-color: var(--border); }
+html[data-skin="apple"] .preview-brand,
+html[data-skin="apple"] .preview-brand>span:last-child,
+html[data-skin="apple"] .preview-caption { color: var(--muted); }
+html[data-skin="apple"] .brand-matrix i { background: var(--blue); }
+html[data-skin="apple"] .shell-header { padding: .85rem 1rem .9rem; gap: .5rem; }
+html[data-skin="apple"] .view-tabs {
+  height: 2.85rem;
+  padding: .23rem;
+  gap: .15rem;
+  background: var(--apple-inset);
+  border: 1px solid var(--line);
+  border-radius: .9rem;
+  min-width: 0;
+}
+html[data-skin="apple"] .view-tabs button {
+  font: 600 .923rem/2.2rem var(--sans);
+  letter-spacing: .015em;
+  padding: 0 .75rem;
+  color: var(--muted);
+  border-radius: .65rem;
+  border-color: transparent;
+}
+html[data-skin="apple"] .view-tabs button[aria-current="page"] {
+  color: var(--blue);
+  background: var(--apple-surface);
+  border-color: var(--line);
+  box-shadow: 0 1px 3px #26456b16, inset 0 1px 0 var(--apple-rim);
+}
+html[data-skin="apple"] .icon-button {
+  width: 2.65rem;
+  height: 2.65rem;
+  background: transparent;
+  color: var(--muted);
+  border-color: transparent;
+  border-radius: .8rem;
+}
+html[data-skin="apple"] .pin-button { width: 2.2rem; }
+html[data-skin="apple"] .icon-button:hover { background: var(--apple-hover); color: var(--blue); }
+html[data-skin="apple"] .header-tools .icon-button img { filter: brightness(.43) saturate(1.3); }
+html[data-skin="apple"] .view { padding: 0 1.15rem 1.25rem; }
+html[data-skin="apple"] .view-root { scrollbar-color: #879bb348 transparent; }
+html[data-skin="apple"] :is(.section-head h2, .rule-config-link, .material-section>summary, .project-members summary) {
+  font: 600 1.077rem/1.4 var(--sans);
+  letter-spacing: -.01em;
+}
+html[data-skin="apple"] :is(.section-head .meta, .section-link, .text-button, .small, .tiny, .legend, .heat-months, .gantt-label, .gantt-axis, .gantt-bar, .week-nav button) {
+  font-size: .923rem;
+  line-height: 1.45;
+}
+html[data-skin="apple"] :is(.section-link, .text-button, .week-nav button, .meta-select) { color: var(--blue); }
+html[data-skin="apple"] .section-link { font-family: var(--sans); font-weight: 500; }
+html[data-skin="apple"] :is(.section-link, .text-button):hover { text-decoration: underline; text-underline-offset: 3px; }
+html[data-skin="apple"] :is(.button, dialog .button) {
+  min-height: 2.75rem;
+  padding: .4rem .95rem;
+  border-radius: .75rem;
+  border: 1px solid var(--border);
+  background: var(--apple-surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+  box-shadow: inset 0 1px 0 var(--apple-rim), 0 1px 2px #27436607;
+}
+html[data-skin="apple"] :is(.button, dialog .button):hover { background: var(--apple-selected); color: var(--text); }
+html[data-skin="apple"] :is(.button.primary, dialog .button.primary) {
+  color: var(--apple-primary-ink);
+  background: var(--apple-primary);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 #ffffff20, 0 2px 6px #0058be1c;
+}
+html[data-skin="apple"] :is(.button.primary, dialog .button.primary):hover { background: color-mix(in srgb, var(--apple-primary) 88%, #000); }
+html[data-skin="apple"] .button.danger { color: var(--red); }
+html[data-skin="apple"] button:disabled { opacity: .48; }
+html[data-skin="apple"] .home-intro { font: 650 1.65rem/1.2 var(--sans); letter-spacing: -.022em; margin: .4rem 0 1.2rem; }
+html[data-skin="apple"] .metrics { gap: .55rem; margin-bottom: .4rem; }
+html[data-skin="apple"] .metric {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  padding: .75rem .6rem;
+  background: var(--apple-surface);
+  border: 1px solid var(--line);
+  border-radius: .85rem;
+}
+html[data-skin="apple"] .metric dt { margin: .3rem 0 0; color: var(--muted); font-size: .923rem; line-height: 1.4; }
+html[data-skin="apple"] .metric dd { color: var(--text); font: 650 1.45rem/1.1 var(--sans); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+html[data-skin="apple"] .home-view .rule { background: transparent; margin: .55rem 0; }
+html[data-skin="apple"] .heatmap { padding: 0; gap: .23rem; }
+html[data-skin="apple"] .heat-cell { background: var(--blue); border-radius: 2px; aspect-ratio: 1; height: auto; }
+html[data-skin="apple"] .heat-months { padding: .5rem 0 0; color: var(--muted); font-family: var(--sans); }
+html[data-skin="apple"] .home-view .past-projects { max-height: 15rem; }
+html[data-skin="apple"] .project-group { border-radius: .65rem; }
+html[data-skin="apple"] .project-group+.project-group { border-top: 1px solid var(--line); }
+html[data-skin="apple"] .project-summary { padding: .65rem .25rem; font: 600 1rem/1.4 var(--sans); }
+html[data-skin="apple"] .project-summary:hover { background: var(--apple-hover); }
+html[data-skin="apple"] .project-summary img { filter: brightness(.42); }
+html[data-skin="apple"] .project-summary .project-stage { color: var(--muted); font-size: .923rem; font-weight: 400; }
+html[data-skin="apple"] .project-docs { padding: 0 .25rem .6rem 1.45rem; gap: .3rem; }
+html[data-skin="apple"] .mini-doc { min-height: 2rem; font: .923rem/1.45 var(--sans); }
+html[data-skin="apple"] .mini-doc .doc-code { color: var(--muted); font: .923rem var(--mono); }
+html[data-skin="apple"] .mini-doc[data-copy-code]:hover { background: var(--apple-hover); }
+html[data-skin="apple"] .planning { border-top-color: var(--line); padding-top: 1rem; }
+html[data-skin="apple"] .week-nav { gap: .35rem; }
+html[data-skin="apple"] .week-nav button { min-width: 1.5rem; min-height: 2.1rem; }
+html[data-skin="apple"] .week-nav button[data-action="plan-edit"] { font-size: .923rem; }
+html[data-skin="apple"] .gantt { font-family: var(--sans); }
+html[data-skin="apple"] .gantt-axis { margin-left: 5.8rem; color: var(--muted); }
+html[data-skin="apple"] .gantt-row { grid-template-columns: 5rem minmax(0,1fr); gap: .8rem; min-height: 2.6rem; }
+html[data-skin="apple"] .gantt-track { background: repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),var(--line) calc(25% - 1px),var(--line) 25%); }
+html[data-skin="apple"] .gantt-bar { background: var(--apple-selected); border-color: #0865cf20; color: var(--blue); height: 1.7rem; border-radius: .4rem; top: .15rem; }
+html[data-skin="apple"] .gantt-bar:hover { filter: none; background: color-mix(in srgb,var(--apple-selected),var(--blue) 9%); }
+html[data-skin="apple"] .gantt-today { background: #0865cf65; }
+html[data-skin="apple"] .gantt-today::before { background: var(--blue); }
+html[data-skin="apple"] .legend { color: var(--muted); font-family: var(--sans); }
+html[data-skin="apple"] .home-actions { margin-top: 1.15rem; }
+html[data-skin="apple"] .project-heading { margin: .4rem 0 1rem; }
+html[data-skin="apple"] .project-heading h1 { font: 650 2rem/1.15 var(--sans); letter-spacing: -.022em; }
+html[data-skin="apple"] .project-switch { height: 2.75rem; width: 2.5rem; color: var(--blue); border-radius: .7rem; background: var(--apple-surface); border: 1px solid var(--line); }
+html[data-skin="apple"] .project-switch:hover { background: var(--apple-selected); }
+html[data-skin="apple"] .project-members { padding: .7rem .85rem; background: var(--apple-surface); border: 1px solid var(--line); border-radius: .9rem; margin-bottom: 1rem; }
+html[data-skin="apple"] .project-members summary { min-height: 2.15rem; }
+html[data-skin="apple"] .project-members .meta { color: var(--muted); font-size: .923rem; font-weight: 400; }
+html[data-skin="apple"] .member-toggle { font-size: .923rem; font-weight: 400; }
+html[data-skin="apple"] .role-name { color: var(--muted); }
+html[data-skin="apple"] .person-chip { background: var(--apple-selected); color: var(--text); border: 0; border-radius: .4rem; padding: .1rem .45rem; font-size: .923rem; }
+html[data-skin="apple"] .team-role { line-height: 1.7; font-size: .923rem; }
+html[data-skin="apple"] .project-meta { gap: .65rem 1rem; }
+html[data-skin="apple"] .project-meta :is(dt, dd),
+html[data-skin="apple"] .meta-select { color: var(--muted); font-family: var(--sans); font-size: .923rem; }
+html[data-skin="apple"] .project-meta dd { color: var(--text); }
+html[data-skin="apple"] .meta-select { color: var(--blue); }
+html[data-skin="apple"] .project-stages button { font: 500 .923rem var(--sans); min-height: 2.2rem; }
+html[data-skin="apple"] .project-stages button.current i { box-shadow: 0 0 0 3px var(--apple-selected); }
+html[data-skin="apple"] .material-section>summary { min-height: 3rem; padding: .7rem 0; }
+html[data-skin="apple"] .material-section>summary span { font: 400 .923rem var(--sans); }
+html[data-skin="apple"] .bom-tools button { font: .923rem var(--sans); }
+html[data-skin="apple"] .project-view .bom-row { min-height: 3.4rem; padding: .45rem .25rem; border-bottom: 1px solid var(--line); border-radius: 0; }
+html[data-skin="apple"] .bom-row[data-copy-code]:hover { background: var(--apple-hover); }
+html[data-skin="apple"] .bom-name { color: var(--text); font: 500 1rem/1.4 var(--sans); }
+html[data-skin="apple"] .bom-row .bom-code { color: var(--muted); font: .923rem/1.4 var(--mono); }
+html[data-skin="apple"] .table { font-family: var(--sans); }
+html[data-skin="apple"] .table :is(th, td) { font-size: .923rem; line-height: 1.55; }
+html[data-skin="apple"] .table th { color: var(--muted); font-weight: 500; }
+html[data-skin="apple"] .table td:first-child { color: var(--text); }
+html[data-skin="apple"] .project-view .table td { padding: .55rem 0; border-top: 1px solid var(--line); }
+html[data-skin="apple"] .delivery-line { font-size: .923rem; margin: .8rem 0 .4rem; }
+html[data-skin="apple"] .delivery-line strong { font: 500 .923rem var(--sans); }
+/* Shared review structure: only material, typography, and hierarchy change here. */
+html[data-skin="apple"] .review-project { align-items: center; }
+html[data-skin="apple"] .review-summary { background: var(--apple-surface); border: 1px solid var(--line); border-radius: .9rem; padding: .8rem; }
+html[data-skin="apple"] .review-summary :is(strong,b) { font-family: var(--sans); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+html[data-skin="apple"] .review-summary :is(small,dt) { color: var(--muted); }
+html[data-skin="apple"] .review-summary>div>span { color: var(--muted); font-size: .923rem; }
+html[data-skin="apple"] .review-summary>div:last-child strong { color: var(--text); }
+html[data-skin="apple"] .status-pill { color: var(--blue); background: var(--apple-selected); border-color: transparent; padding: .35rem .6rem; border-radius: 1rem; letter-spacing: 0; font: 500 .923rem/1.4 var(--sans); }
+html[data-skin="apple"] .status-pill[data-status="paused"] { color: var(--yellow); background: #e9b7571a; }
+html[data-skin="apple"] .flow-heading { margin-bottom: .65rem; }
+html[data-skin="apple"] .rule-config-link>span { font: 500 .923rem var(--sans); }
+html[data-skin="apple"] .source-panel { background: var(--apple-surface); border: 1px solid var(--line); border-radius: .9rem; box-shadow: inset 0 1px 0 var(--apple-rim); }
+html[data-skin="apple"] .source-heading { color: var(--muted); border-bottom-color: var(--line); padding-inline: .7rem; background: var(--apple-hover); }
+html[data-skin="apple"] .source-heading .source-name { font: 500 .923rem/1.4 var(--sans); }
+html[data-skin="apple"] .source-heading>span:last-child { color: var(--muted); font-size: .923rem; }
+html[data-skin="apple"] .source-row,
+html[data-skin="apple"] .source-row.log-row,
+html[data-skin="apple"] .source-row.log-row>span:last-child { color: var(--text); }
+html[data-skin="apple"] .source-code { color: var(--text); }
+html[data-skin="apple"] .review-view .source-row .source-result { color: var(--blue); font-family: var(--sans); font-size: .923rem; }
+html[data-skin="apple"] .source-result[data-severity="warning"],
+html[data-skin="apple"] .source-result[data-severity="error"] { color: var(--yellow); }
+html[data-skin="apple"] .agent-cell[data-group="0"] { --flow-cell-color: var(--flow-color-0); }
+html[data-skin="apple"] .agent-cell[data-group="1"] { --flow-cell-color: var(--flow-color-1); }
+html[data-skin="apple"] .agent-cell[data-group="2"] { --flow-cell-color: var(--flow-color-2); }
+html[data-skin="apple"] .agent-cell[data-group="3"] { --flow-cell-color: var(--flow-color-3); }
+html[data-skin="apple"] .agent-cell {
+  background: color-mix(in srgb,var(--flow-cell-color) 80%,var(--apple-surface));
+  opacity: 1;
+  box-shadow: inset 0 0 0 .65px color-mix(in srgb,var(--flow-cell-color) 28%,transparent);
+}
+html[data-skin="apple"] .agent-cell.trail {
+  background: var(--flow-cell-color);
+  opacity: 1;
+  box-shadow: none;
+}
+html[data-skin="apple"] .agent-cell.active,
+html[data-skin="apple"] .flow-paused .agent-cell.active {
+  background: color-mix(in srgb,var(--flow-cell-color) 75%,var(--flow-active-mix));
+  opacity: 1;
+  box-shadow: inset 0 0 0 .8px color-mix(in srgb,var(--flow-active-mix) 50%,transparent);
+}
+html[data-skin="apple"] .flow-idle .agent-cell,
+html[data-skin="apple"] .agent-cell.done { opacity: 1; }
+html[data-skin="apple"] .bar-fill.landed::after { background: var(--flow-particle-ink); filter: none; box-shadow: 0 0 2px var(--flow-particle-ink); }
+html[data-skin="apple"] .agent-label { color: var(--muted); font: .923rem/1.4 var(--sans); }
+html[data-skin="apple"] .agent-label>span { color: var(--muted); }
+html[data-skin="apple"] .rule-bar { font: .923rem/1.4 var(--sans); color: var(--muted); }
+html[data-skin="apple"] .rule-count { color: var(--muted); font: .923rem/1.4 var(--mono); }
+html[data-skin="apple"] :is(.bar-track, .progress-track) { background: var(--apple-inset); }
+html[data-skin="apple"] .bar-fill { background: color-mix(in srgb,var(--bar) 46%,var(--blue)); }
+html[data-skin="apple"] .progress-fill { background: var(--blue); box-shadow: none; }
+html[data-skin="apple"] .progress-meta { font: .923rem/1.45 var(--sans); color: var(--muted); gap: .65rem; }
+html[data-skin="apple"] #progressPercent { font-family: var(--mono); flex-shrink: 0; }
+html[data-skin="apple"] .revision-view { padding-top: .4rem; }
+html[data-skin="apple"] .revision-view h1 { font: 650 1.65rem/1.2 var(--sans); letter-spacing: -.022em; }
+html[data-skin="apple"] .revision-view>.section-head { flex-wrap: wrap; }
+html[data-skin="apple"] .model-config { padding: .7rem .85rem; background: var(--apple-surface); border: 1px solid var(--line); border-radius: .9rem; margin: .8rem 0; }
+html[data-skin="apple"] .model-config summary { margin: .2rem 0; color: var(--text); font-weight: 500; }
+html[data-skin="apple"] .model-config[open] summary { margin-bottom: 1rem; }
+html[data-skin="apple"] .revision-note,
+html[data-skin="apple"] .revision-status { font-size: .923rem; }
+html[data-skin="apple"] .revision-document h2 { font-size: 1.077rem; font-weight: 600; }
+html[data-skin="apple"] .revision-record { background: var(--apple-surface); border-color: var(--line); border-radius: .85rem; }
+html[data-skin="apple"] .revision-record:hover { background: var(--apple-selected); }
+html[data-skin="apple"] :is(.revision-record span, .revision-record small, .report-item, .empty-state) { color: var(--muted); font-size: .923rem; }
+html[data-skin="apple"] .revision-record strong { font-weight: 600; }
+html[data-skin="apple"] :is(.revision-history h2, .revision-findings summary) { font-size: 1.077rem; font-weight: 600; }
+/* A single floating sheet: blur belongs behind the sheet, with stable opaque fields. */
+html[data-skin="apple"] dialog {
+  color-scheme: light;
+  background: var(--apple-dialog);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  padding: 1.35rem;
+  box-shadow: inset 0 1px 0 var(--apple-rim), 0 6px 18px #18365614, 0 28px 75px #1836562b;
+  -webkit-backdrop-filter: blur(30px) saturate(145%);
+  backdrop-filter: blur(30px) saturate(145%);
+  scrollbar-color: #879bb348 transparent;
+}
+html[data-skin="apple"] dialog::backdrop { background: var(--apple-backdrop); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+html[data-skin="apple"] .dialog-head { border-bottom-color: var(--line); margin-bottom: 1.2rem; padding-bottom: .9rem; }
+html[data-skin="apple"] .dialog-head h2 { color: var(--text); font: 600 1.4rem/1.3 var(--sans); letter-spacing: -.014em; }
+html[data-skin="apple"] .dialog-head .icon-button { width: 2.5rem; height: 2.5rem; background: var(--apple-inset); color: var(--muted); border: 0; }
+html[data-skin="apple"] .dialog-head .icon-button:hover { background: var(--apple-selected); color: var(--blue); }
+html[data-skin="apple"] :is(.field label, dialog .field label, .field small, dialog .field small, .field-hint, .setting-row small, .settings-note) { color: var(--muted); font-size: .923rem; line-height: 1.55; }
+html[data-skin="apple"] :is(.field input, .field select, .field textarea, .member-field input, .plan-edit-row input, .revision-view input, .revision-view select) {
+  color-scheme: light;
+  color: var(--text);
+  background: var(--apple-surface);
+  border: 1px solid var(--border);
+  border-radius: .7rem;
+  min-height: 2.9rem;
+  padding: .65rem .75rem;
+  box-shadow: inset 0 1px 2px #254b7706;
+  font-size: 1rem;
+}
+html[data-skin="apple"] .plan-edit-row input { min-height: 2.6rem; padding: .45rem .3rem; font-size: .923rem; }
+html[data-skin="apple"] :is(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
+html[data-skin="apple"] dialog .field :is(input, select, textarea):focus,
+html[data-skin="apple"] dialog .member-field input:focus { background: var(--apple-surface); border-color: var(--blue); outline-color: var(--blue); }
+html[data-skin="apple"] select option { color: var(--text); background: var(--apple-solid); }
+html[data-skin="apple"] :is(.rule-option input, .setting-row input[type="checkbox"]) { accent-color: var(--blue); width: 1.25rem; height: 1.25rem; }
+html[data-skin="apple"] .rule-option { font-size: 1rem; padding-block: .65rem; }
+html[data-skin="apple"] .rule-option small { font-size: .923rem; color: var(--muted); }
+html[data-skin="apple"] .document-preview { color: var(--text); background: var(--apple-inset); }
+html[data-skin="apple"] .toast { background: var(--apple-solid); color: var(--text); border-color: var(--border); box-shadow: var(--apple-shadow); }
+/* Wide desktop windows use the width for parallel sections, not larger empty panels. */
+@media (min-width: 680px) {
+  html[data-skin="apple"].desktop .home-view { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1.2rem 1.8rem; align-content: start; }
+  html[data-skin="apple"].desktop .home-view>:is(.home-intro, .metrics, .planning, .home-actions) { grid-column: 1 / -1; }
+  html[data-skin="apple"].desktop .home-view>.rule { display: none; }
+  html[data-skin="apple"].desktop .home-view :is(.home-intro, .metrics, .planning, .home-actions) { margin: 0; }
+  html[data-skin="apple"].desktop .home-view>section { margin: 0; min-width: 0; }
+  html[data-skin="apple"].desktop .home-view .past-projects { max-height: 14.5rem; }
+  html[data-skin="apple"].desktop .metrics { gap: .8rem; }
+  html[data-skin="apple"].desktop .metric { padding: .85rem 1rem; }
+  html[data-skin="apple"].desktop .project-members .members.role-members { grid-template-columns: repeat(4,minmax(0,1fr)); }
+}
+@media (max-width: 380px) {
+  html[data-skin="apple"] .shell-header { padding-inline: .75rem; gap: .35rem; }
+  html[data-skin="apple"] .view-tabs button { padding-inline: .6rem; }
+  html[data-skin="apple"] .header-tools { gap: 0; }
+  html[data-skin="apple"] .view { padding-inline: .95rem; }
+  html[data-skin="apple"] .metric { padding-inline: .45rem; }
+  html[data-skin="apple"] .metric dt { letter-spacing: -.02em; }
+  html[data-skin="apple"] .project-meta { gap: .6rem; }
+}
+/* Short desktop panels compact chrome; type, controls and all 100 cells stay legible. */
+@media (max-height: 600px) {
+  html[data-skin="apple"] .shell-header { padding-block: .6rem; }
+  html[data-skin="apple"] .review-project { margin-top: .1rem; margin-bottom: .4rem; }
+  html[data-skin="apple"] .review-project select { min-height: 2.55rem; padding-block: .4rem; }
+  html[data-skin="apple"] .review-summary { padding-block: .35rem; margin-bottom: .45rem; }
+  html[data-skin="apple"] .review-view .workflow { padding-top: .45rem; }
+  html[data-skin="apple"] .review-view .rule-bars { gap: .25rem; }
+  html[data-skin="apple"] .review-view .review-controls { margin-top: .4rem !important; padding-top: .4rem; }
+}
+@media (pointer: coarse) {
+  html[data-skin="apple"] :is(.button, .icon-button, .view-tabs button, .project-switch, .project-summary, summary, .bom-row) { min-height: 44px; }
+  html[data-skin="apple"] .view-tabs { height: auto; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-skin="apple"] .glass-shell,
+  html[data-skin="apple"].desktop .glass-shell,
+  html[data-skin="apple"] dialog { background: var(--apple-solid); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-skin="apple"] .glass-shell,
+  html[data-skin="apple"].desktop .glass-shell,
+  html[data-skin="apple"] dialog { background: var(--apple-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html[data-skin="apple"] dialog::backdrop { background: #17283b70; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  html[data-skin="apple"] { --line: #51627680; --border: #516276b3; --faint: #34485f; --muted: #34485f; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin="apple"] *, html[data-skin="apple"] *::before, html[data-skin="apple"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+/* Optional dark material uses the same hierarchy; default delivery is intentionally light. */
+html[data-skin="apple"][data-theme="dark"] {
+  color-scheme: dark;
+  --text: #edf4fc; --muted: #b7c6d8; --faint: #a7bad0;
+  --blue: #91c6ff; --mint: #91c6ff; --purple: #b5bfff; --green: #89d0de; --yellow: #e9c17b; --red: #ffa4b0;
+  --line: #c2dcfa22; --border: #c2dcfa38; --control: #29394b;
+  --apple-surface: #25364b; --apple-solid: #172638; --apple-inset: #142437;
+  --apple-hover: #91c6ff10; --apple-selected: #304b6c;
+  --apple-shell: linear-gradient(155deg,#293c51f5,#192b40f5);
+  --apple-rim: #e6f1ff24; --apple-dialog: #22364bef; --apple-backdrop: #08152565;
+  --apple-primary: #91c6ff; --apple-primary-ink: #10263e;
+  --flow-color-0: #7ebeff; --flow-color-1: #67cce3; --flow-color-2: #9baef7; --flow-color-3: #a0d8fa;
+  --flow-particle-ink: #eaf5ff; --flow-particle-glow: 6; --flow-active-mix: #eaf5ff;
+}
+html[data-skin="apple"][data-theme="dark"] :is(dialog, input, select, textarea, .revision-view input, .revision-view select) { color-scheme: dark; }
+html[data-skin="apple"][data-theme="dark"] :is(.header-tools .icon-button img, .project-summary img) { filter: none; }
