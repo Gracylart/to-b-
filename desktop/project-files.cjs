@@ -12,6 +12,8 @@ const codeKey=s=>String(s||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase(
 const isCode=s=>/^(?:[A-Za-z]{1,8}\d{2,12}[A-Za-z0-9]{0,5}|\d{6,12})$/.test(s||'')&&!/^(?:IMG|DSC|SCREENSHOT)\d+/i.test(s);
 const inside=(root,target)=>{const rel=path.relative(root,target);return rel===''||(!path.isAbsolute(rel)&&rel!=='..'&&!rel.startsWith('..'+path.sep));};
 const uid=s=>crypto.createHash('sha256').update(s).digest('hex').slice(0,24);
+const hasCode=(text,code)=>Boolean(code)&&(/^[A-Z0-9]+$/.test(code)?new RegExp('(^|[^A-Z0-9])'+code+'($|[^A-Z0-9])').test(text):text.includes(code));
+const hasStage=(text,stage)=>/^[A-Z0-9]+$/.test(stage)?hasCode(text,stage):new RegExp('(?:^|[\\s,，:：;；|/_()（）-])'+stage+'(?=$|[\\s,，;；|/_()（）-])').test(text)||text.includes('阶段：'+stage)||text.includes('阶段:'+stage);
 function named(file,root,catalog=[]) {
   const relativePath=path.relative(root,file),name=path.basename(file),ext=path.extname(name).toLowerCase();
   const stem=name.slice(0,-ext.length),parts=stem.replace(/[–—－]/g,'-').split(/[-_]+/).map(s=>s.trim()).filter(Boolean);
@@ -69,7 +71,7 @@ class ProjectFiles extends EventEmitter {
   }
   setCatalog(projects){
     if(!Array.isArray(projects)||projects.length>1000)throw Error('项目列表无效');
-    const next=projects.filter(p=>p&&typeof p.code==='string'&&typeof p.name==='string').map(p=>({code:codeKey(p.code).slice(0,40),name:p.name.slice(0,120),source:'workspace'}));
+    const next=projects.filter(p=>p&&typeof p.code==='string'&&p.code.trim()&&typeof p.name==='string').map(p=>({code:codeKey(p.code).slice(0,40),name:p.name.slice(0,120),source:'workspace',example:p.example===true}));
     const merged=new Map(this.catalog.map(p=>[p.code,p]));for(const p of next)merged.set(p.code,p);
     if(JSON.stringify([...merged.values()])===JSON.stringify(this.catalog))return;
     this.catalog=[...merged.values()];this.retryPending(true);this.schedule();this.changed();
@@ -117,21 +119,24 @@ class ProjectFiles extends EventEmitter {
       if(limited)break;
     }
     if(!limited)for(const[id,file]of this.files)if(!seen.has(id)&&!failedRoots.has(file.sourceId))this.files.delete(id);
+    if(!limited)this.catalog=this.catalog.filter(p=>p.source!=='discovered'||[...this.files.values()].some(f=>f.projectCode===p.code||f.linkedCodes?.includes(p.code)));
     if(limited)this.errors.push({error:`本轮扫描达到 ${this.maxFiles} 份文件上限，请缩小监听目录`});
     this.modelQueue=this.modelQueue.filter((item,i,a)=>a.findIndex(x=>x.id===item.id&&x.signature===item.signature)===i).sort((a,b)=>(this.files.get(b.id)?.mtime||0)-(this.files.get(a.id)?.mtime||0));
   }
   async processModel(){
     if(this.closed||this.modelBusy||!this.model||this.model.state!=='ready')return;
+    const targets=this.catalog.filter(p=>!p.example||[...this.files.values()].some(f=>f.projectCode===p.code));
+    if(!targets.length)return;
     this.modelBusy=true;this.changed();
     try{while(this.modelQueue.length&&!this.closed){const item=this.modelQueue.shift(),file=this.files.get(item.id);if(!file||file.signature!==item.signature||(file.state!=='pending'&&!(file.kind==='sheet'&&!file.stage))||file.conflict||this.manual[file.id])continue;
       // The extractor never executes document scripts, formulas, or macros.
       try{await this.resolve(file.id);const extracted=await this.extract(file);if(this.closed)break;file.contentNote=extracted.note;
-        const result=await this.model.classify(file,this.catalog,extracted.text);
+        const result=await this.model.classify(file,targets,extracted.text);
         if(this.closed||this.files.get(file.id)?.signature!==item.signature||this.manual[file.id])continue;
         const code=codeKey(result.projectCode),candidate=this.catalog.find(p=>p.code===code);
         const evidence=(file.name+' '+file.relativePath+' '+extracted.text).toUpperCase();
-        const verified=candidate&&(evidence.includes(code)||(candidate.name.length>=3&&evidence.includes(candidate.name.toUpperCase())));
-        const stage=result.stage&&evidence.includes(result.stage.toUpperCase())?result.stage:'';
+        const verified=candidate&&(hasCode(evidence,code)||(candidate.name.length>=3&&evidence.includes(candidate.name.toUpperCase())));
+        const stage=result.stage&&hasStage(evidence,result.stage.toUpperCase())?result.stage:'';
         const material=result.material&&evidence.includes(result.material.toUpperCase())?result.material:file.material;
         if(file.state==='linked'){if(!file.stage){file.stage=stage;file.stageMethod='model';}file.contentNote=extracted.note;}
         else if(verified){Object.assign(file,{projectCode:code,product:candidate.name,material,stage:stage||file.stage,state:'linked',method:'model',reason:'文件名或文字与项目 '+code+' 的编号或名称匹配'});}

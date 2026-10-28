@@ -143,6 +143,7 @@ function showPanel(destination) {
   positionPanel();
   ignoreBlurUntil = Date.now() + 350;
   panel.show();
+  app.focus?.({steal:true});
   panel.focus();
   if (pendingNavigation) {
     panel.webContents.send('review:navigate', pendingNavigation);
@@ -285,12 +286,18 @@ function createPanel() {
     if (!quitting) { event.preventDefault(); hidePanel(); }
   });
   panel.on('closed', () => { panel = undefined; readyToShow = false; });
-  panel.once('ready-to-show', () => {
+  const showInitialPanel=()=>{
+    if(readyToShow)return;
     readyToShow = true;
     try{const saved=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'native-layout.json'),'utf8'));if(['sidebar','horizontal'].includes(saved.mode))nativeLayout={mode:saved.mode,peek:false};}catch{}
     if(nativeLayout.mode!=='workspace')applyNativeLayout();
     if (showRequested || pendingNavigation) showPanel();
-  });
+  };
+  panel.once('ready-to-show',showInitialPanel);
+  // Accessory applications may not produce their first hidden paint until
+  // activation. A fully loaded page is also safe to show; don't deadlock on
+  // ready-to-show when reopening an updated menu-bar application.
+  panel.webContents.once('did-finish-load',showInitialPanel);
   panel.webContents.on('render-process-gone', (_event, details) => {
     console.error('Renderer stopped:', details.reason);
     status = { ...INITIAL_STATUS };

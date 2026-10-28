@@ -35,7 +35,8 @@ test('watcher discovers new files and ignores temporary Excel files and symlinks
 test('model associations require a real known-project match in the original document',async t=>{
  const model={state:'ready',classify:async()=>({projectCode:'R521P',product:'台灯',material:'彩盒',stage:'DVT',kind:'material',evidence:'模型猜测'})};
  const {source,lib}=await fixture(t,{model,extract:async()=>({text:'无项目号的未知文件',note:''})});await writeFile(path.join(source,'终稿.pdf'),'data');await lib.scan();await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files[0].state,'pending');
- lib.extract=async()=>({text:'项目 R501P 便携风扇 DVT',note:''});model.classify=async()=>({projectCode:'R501P',product:'便携风扇',material:'彩盒',stage:'PVT',kind:'material',evidence:'文字包含项目 R501P'});lib.retryPending(true);await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files[0].state,'linked');assert.equal(lib.snapshot().files[0].method,'model');assert.notEqual(lib.snapshot().files[0].stage,'PVT');assert.notEqual(lib.snapshot().files[0].material,'彩盒');
+ lib.extract=async()=>({text:'项目 R501PX SAMPLE',note:''});model.classify=async()=>({projectCode:'R501P',product:'便携风扇',material:'彩盒',stage:'MP',kind:'material',evidence:'R501P'});lib.retryPending(true);await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files[0].state,'pending');
+ lib.extract=async()=>({text:'项目 R501P 便携风扇 DVT SAMPLE',note:''});lib.retryPending(true);await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files[0].state,'linked');assert.equal(lib.snapshot().files[0].method,'model');assert.notEqual(lib.snapshot().files[0].stage,'MP');assert.notEqual(lib.snapshot().files[0].material,'彩盒');
 });
 test('a late model response cannot override a manual confirmation',async t=>{
  let complete;const model={state:'ready',classify:()=>new Promise(r=>{complete=r;})};const {source,lib}=await fixture(t,{model,extract:async()=>({text:'R501P R521P',note:''})});await writeFile(path.join(source,'未知.pdf'),'fixture');await lib.scan();await waitFor(()=>Boolean(complete));const f=lib.snapshot().files[0];await lib.assign(f.id,'R501P');complete({projectCode:'R521P',product:'台灯',material:'彩盒',stage:'',kind:'material',evidence:'R521P'});await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files[0].projectCode,'R501P');
@@ -43,6 +44,12 @@ test('a late model response cannot override a manual confirmation',async t=>{
 test('unchanged unresolved model results are cached instead of re-running on every launch',async t=>{
  let calls=0;const model={state:'ready',classify:async()=>{calls++;return {projectCode:'',product:'',material:'',stage:'',kind:'unknown',evidence:''};}};
  const {source,lib}=await fixture(t,{model,extract:async()=>({text:'无法确定的文件',note:''})});await writeFile(path.join(source,'未命名.pdf'),'fixture');await lib.scan();await waitFor(()=>!lib.modelBusy);assert.equal(calls,1);lib.retryPending();await waitFor(()=>!lib.modelBusy);assert.equal(calls,1);lib.retryPending(true);await waitFor(()=>!lib.modelBusy);assert.equal(calls,2);
+});
+test('sample review projects alone do not cause unrelated desktop files to run through the model',async t=>{
+ let calls=0;const model={state:'ready',classify:async()=>{calls++;return {projectCode:'',product:'',material:'',stage:'',kind:'unknown',evidence:''};}};
+ const {source,lib}=await fixture(t,{model,extract:async()=>({text:'unknown',note:''})});lib.setCatalog(catalog.map(p=>({...p,example:true})));
+ await writeFile(path.join(source,'未命名.pdf'),'fixture');await lib.scan();await waitFor(()=>!lib.modelBusy);assert.equal(calls,0);
+ await writeFile(path.join(source,'R501P-便携风扇-彩盒.pdf'),'fixture');await lib.scan();await waitFor(()=>!lib.modelBusy);assert.equal(calls,1);
 });
 test('Excel stage/content extraction reads real cells and does not evaluate formulas',async t=>{
  const {source}=await fixture(t);const XLSX=require('xlsx');const sheet=XLSX.utils.aoa_to_sheet([['项目号','阶段','物料'],['R501P','DVT','彩盒']]);sheet.D1={f:'HYPERLINK("https://invalid.invalid","ignored")',v:'cached',t:'s'};const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'打样记录');const file=path.join(source,'物料表.xlsx');XLSX.writeFile(book,file);const result=await excerpt({path:file,ext:'.xlsx'});assert.match(result.text,/R501P/);assert.match(result.text,/DVT/);assert.match(result.text,/打样记录/);assert.doesNotMatch(result.text,/HYPERLINK/);

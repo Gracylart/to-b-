@@ -186,6 +186,7 @@ async function mainHarness() {
       this.options = options;
       this.webContents = new MockContents();
       this.hideCount = 0;
+      this.showCount = 0;
       windows.push(this);
     }
     isDestroyed() { return false; }
@@ -196,12 +197,16 @@ async function mainHarness() {
       return Promise.resolve();
     }
     hide() { this.hideCount += 1; }
+    show() { this.showCount += 1; }
+    focus() {}
+    setBounds(bounds) {this.bounds=bounds;}
   }
   class MockTray extends EventEmitter {
     constructor() { super(); trays.push(this); }
     isDestroyed() { return false; }
     setTitle(title) { this.title = title; }
     setToolTip() {}
+    getBounds() {return {x:0,y:0,width:0,height:0};}
     destroy() {}
   }
   const app = new EventEmitter();
@@ -211,6 +216,7 @@ async function mainHarness() {
     setName() {},
     setAppUserModelId() {},
     requestSingleInstanceLock: () => true,
+    isReady: () => true,
     whenReady: () => Promise.resolve(),
     getPath: name => appPaths.get(name) || '/virtual/review-desk',
     setPath: (name, value) => appPaths.set(name, value),
@@ -230,6 +236,8 @@ async function mainHarness() {
       webRequest: { onHeadersReceived() {} },
     } },
   };
+  electron.screen.getPrimaryDisplay=()=>({workArea:{x:0,y:24,width:1600,height:1000}});
+  electron.screen.getDisplayMatching=electron.screen.getPrimaryDisplay;
   const disk = {
     readFileSync(file) { reads.push(file); throw new Error('No saved preferences'); },
     mkdirSync() {},
@@ -285,6 +293,12 @@ test('actual IPC handlers reject unrelated senders, child frames, and missing fr
   invocations.get('review:preferences:set')(trustedEvent(), { pinned: true, command: 'ignored' });
   assert.equal(writes.length, 1);
   assert.deepEqual(JSON.parse(writes[0][1]), { pinned: true, launchAtLogin: false });
+});
+
+test('loaded desktop page becomes visible even without an initial hidden-paint event',async()=>{
+  const {panel}=await mainHarness();assert.equal(panel.showCount,0);
+  panel.webContents.emit('did-finish-load');assert.equal(panel.showCount,1);assert.equal(panel.bounds.width,1200);
+  panel.emit('ready-to-show');assert.equal(panel.showCount,1);
 });
 
 test('a navigated main frame loses all IPC privileges until the trusted document returns', async () => {
