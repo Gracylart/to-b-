@@ -5,7 +5,7 @@ import {mkdtemp,mkdir,writeFile,rename,unlink,symlink,readFile,rm,realpath} from
 import path from 'node:path';
 import os from 'node:os';
 const require=createRequire(import.meta.url);
-const {ProjectFiles,named,excerpt}=require('../desktop/project-files.cjs');
+const {ProjectFiles,named,excerpt,extractInProcess}=require('../desktop/project-files.cjs');
 const catalog=[{code:'R501P',name:'便携风扇'},{code:'R521P',name:'桌面台灯'}];
 async function fixture(t,extra={}){const root=await realpath(await mkdtemp(path.join(os.tmpdir(),'review-files-')));const source=path.join(root,'source');await mkdir(source);const lib=await new ProjectFiles({directory:path.join(root,'cache'),defaultRoots:[{path:source,label:'测试目录'}],pollMs:0,debounceMs:30,...extra}).init();lib.setCatalog(catalog);t.after(async()=>{await lib.close();await rm(root,{recursive:true,force:true});});return {root,source,lib};}
 const waitFor=async predicate=>{for(let n=0;n<80;n++){if(predicate())return;await new Promise(r=>setTimeout(r,40));}assert.fail('文件监听未在时限内更新');};
@@ -55,5 +55,23 @@ test('Excel stage/content extraction reads real cells and does not evaluate form
  const {source}=await fixture(t);const XLSX=require('xlsx');const sheet=XLSX.utils.aoa_to_sheet([['项目号','阶段','物料'],['R501P','DVT','彩盒']]);sheet.D1={f:'HYPERLINK("https://invalid.invalid","ignored")',v:'cached',t:'s'};const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'打样记录');const file=path.join(source,'物料表.xlsx');XLSX.writeFile(book,file);const result=await excerpt({path:file,ext:'.xlsx'});assert.match(result.text,/R501P/);assert.match(result.text,/DVT/);assert.match(result.text,/打样记录/);assert.doesNotMatch(result.text,/HYPERLINK/);
 });
 test('PDF text extraction reads an actual PDF',async t=>{
- const {source}=await fixture(t);const {PDFDocument}=require('pdf-lib');const doc=await PDFDocument.create();doc.addPage().drawText('Project R501P - packaging');const file=path.join(source,'document.pdf');await writeFile(file,await doc.save());const result=await excerpt({path:file,ext:'.pdf'});assert.match(result.text,/R501P/);
+ const {source}=await fixture(t);const {PDFDocument}=require('pdf-lib');const doc=await PDFDocument.create();doc.addPage().drawText('Project R501P - packaging');const file=path.join(source,'document.pdf');await writeFile(file,await doc.save());const result=await extractInProcess({path:file,ext:'.pdf'});assert.match(result.text,/R501P/);const controller=new AbortController();controller.abort();await assert.rejects(extractInProcess({path:file,ext:'.pdf'},{signal:controller.signal}),/停止文件提取/);
+});
+
+test('native event ingestion updates a file while a background scan is still pending',async t=>{
+ const {source,lib}=await fixture(t);clearTimeout(lib.timer);
+ let finish;lib.currentScan=new Promise(resolve=>{finish=resolve;});lib.scanning=true;
+ const file=path.join(source,'R501P-便携风扇-事件验收.pdf');await writeFile(file,'data');
+ await lib.applyEvents(lib.roots[0],[{type:'create',path:file}]);
+ assert.equal(lib.snapshot().files.find(f=>f.path===file)?.projectCode,'R501P');
+ await lib.applyEvents(lib.roots[0],[{type:'delete',path:file}]);
+ assert.equal(lib.snapshot().files.find(f=>f.path===file),undefined);
+ lib.scanning=false;finish();
+});
+test('overlapping root events retain the more specific project source',async t=>{
+ const {source,lib}=await fixture(t);const sub=path.join(source,'project');await mkdir(sub);
+ const file=path.join(sub,'R501P-便携风扇-来源.pdf');await writeFile(file,'data');await lib.addRoot(sub,'项目总目录');
+ const record=lib.snapshot().files.find(f=>f.path===file);const projectRoot=lib.roots.find(r=>r.path===sub);
+ assert.equal(record.sourceId,projectRoot.id);await lib.applyEvents(lib.roots[0],[{type:'update',path:file}]);
+ assert.equal(lib.snapshot().files.find(f=>f.path===file).sourceId,projectRoot.id);
 });

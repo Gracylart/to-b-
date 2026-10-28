@@ -4,8 +4,9 @@ const fsp=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {EventEmitter}=require('node:events');
-const {Worker}=require('node:worker_threads');
+const {fork}=require('node:child_process');
 const SUPPORTED=new Set(['.pdf','.xlsx','.xls','.xlsm','.csv','.tsv','.txt','.md','.ai','.svg','.png','.jpg','.jpeg','.webp']);
+const {FileMetadata}=require('./file-metadata.cjs');
 const SHEETS=new Set(['.xlsx','.xls','.xlsm','.csv','.tsv']);
 const SKIP=new Set(['node_modules','.git','Library','release','dist','.Trash','.cache']);
 const codeKey=s=>String(s||'').normalize('NFKC').replace(/\s+/g,'').toUpperCase();
@@ -50,22 +51,25 @@ async function excerpt(file) {
   if(['.txt','.md'].includes(file.ext))return {text:(await fsp.readFile(file.path,'utf8')).slice(0,6000),note:''};
   return {text:'',note:'仅按文件名识别'};
 }
-function extractInWorker(file){return new Promise((resolve,reject)=>{
-  const worker=new Worker(path.join(__dirname,'file-extractor.cjs'),{workerData:{path:file.path,ext:file.ext}});let settled=false;
-  const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);worker.terminate();error?reject(error):resolve(value);};
+function extractInProcess(file,{signal}={}){return new Promise((resolve,reject)=>{
+  if(signal?.aborted){reject(Error('已停止文件提取'));return;}
+  const child=fork(path.join(__dirname,'file-extractor.cjs'),[JSON.stringify({path:file.path,ext:file.ext})],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','ignore','ignore','ipc']});let settled=false;
+  const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);child.kill('SIGKILL');error?reject(error):resolve(value);};
+  const abort=()=>finish(Error('已停止文件提取'));
   const timer=setTimeout(()=>finish(Error('文件内容提取超时')),25000);
-  worker.once('message',data=>data.error?finish(Error(data.error)):finish(null,data));worker.once('error',error=>finish(error));worker.once('exit',code=>{if(!settled)finish(Error('文件提取进程提前结束：'+code));});
+  signal?.addEventListener('abort',abort,{once:true});
+  child.once('message',data=>data.error?finish(Error(data.error)):finish(null,data));child.once('error',error=>finish(error));child.once('exit',code=>{if(!settled)finish(Error('文件提取进程提前结束：'+code));});
 });}
 class ProjectFiles extends EventEmitter {
-  constructor({directory,defaultRoots=[],model=null,pollMs=45000,debounceMs=800,maxFiles=15000,extract=extractInWorker}){
-    super();this.directory=directory;this.cache=path.join(directory,'project-files.json');this.defaultRoots=defaultRoots;this.model=model;this.pollMs=pollMs;this.debounceMs=debounceMs;this.maxFiles=maxFiles;this.extract=extract;
+  constructor({directory,defaultRoots=[],model=null,pollMs=45000,debounceMs=800,maxFiles=15000,extract=extractInProcess}){
+    super();this.metadata=new FileMetadata();this.extractAbort=new AbortController();this.directory=directory;this.cache=path.join(directory,'project-files.json');this.defaultRoots=defaultRoots;this.model=model;this.pollMs=pollMs;this.debounceMs=debounceMs;this.maxFiles=maxFiles;this.extract=extract;
     this.roots=[];this.files=new Map();this.catalog=[];this.manual={};this.watchers=[];this.errors=[];this.scanning=false;this.again=false;this.closed=false;this.revision=0;this.modelBusy=false;this.modelQueue=[];this.timer=null;this.saveTimer=null;this.lastScan=null;
   }
   async init(){
     await fsp.mkdir(this.directory,{recursive:true});let data={};try{data=JSON.parse(await fsp.readFile(this.cache,'utf8'));}catch{}
     this.catalog=data.version===2&&Array.isArray(data.catalog)?data.catalog:[];this.manual=data.manual&&typeof data.manual==='object'?data.manual:{};
     const saved=Array.isArray(data.roots)?data.roots:this.defaultRoots;
-    for(const r of saved){try{const real=await fsp.realpath(r.path);if((await fsp.stat(real)).isDirectory()&&!this.roots.some(x=>x.path===real))this.roots.push({id:uid(real),path:real,label:String(r.label||path.basename(real)).slice(0,100),enabled:r.enabled!==false});}catch(e){if(typeof r.path==='string'&&path.isAbsolute(r.path)&&!this.roots.some(x=>x.path===r.path))this.roots.push({id:uid(r.path),path:r.path,label:String(r.label||path.basename(r.path)).slice(0,100),enabled:r.enabled!==false});this.errors.push({source:r.label,error:'目录暂不可访问'});}}
+    for(const r of saved){try{const real=await this.metadata.realpath(r.path);if((await this.metadata.stat(real)).isDirectory()&&!this.roots.some(x=>x.path===real))this.roots.push({id:uid(real),path:real,label:String(r.label||path.basename(real)).slice(0,100),enabled:r.enabled!==false});}catch(e){if(typeof r.path==='string'&&path.isAbsolute(r.path)&&!this.roots.some(x=>x.path===r.path))this.roots.push({id:uid(r.path),path:r.path,label:String(r.label||path.basename(r.path)).slice(0,100),enabled:r.enabled!==false});this.errors.push({source:r.label,error:'目录暂不可访问'});}}
     if(data.version===2&&Array.isArray(data.files))for(const f of data.files)if(f&&typeof f.path==='string'&&this.roots.some(r=>inside(r.path,f.path))){if(!['立项','设计','打样','送审','确认','试产','量产','EVT','DVT','PVT','MP','T0'].includes(f.stage))f.stage='';this.files.set(f.id,f);}
     this.watch();return this;
   }
@@ -76,11 +80,16 @@ class ProjectFiles extends EventEmitter {
     if(JSON.stringify([...merged.values()])===JSON.stringify(this.catalog))return;
     this.catalog=[...merged.values()];this.retryPending(true);this.schedule();this.changed();
   }
-  async addRoot(directory,label){const real=await fsp.realpath(directory);if(!(await fsp.stat(real)).isDirectory())throw Error('请选择文件夹');if(!this.roots.some(r=>r.path===real))this.roots.push({id:uid(real),path:real,label:label||path.basename(real),enabled:true});this.watch();this.changed();await this.scan();return this.snapshot();}
+  async addRoot(directory,label){const real=await this.metadata.realpath(directory);if(!(await this.metadata.stat(real)).isDirectory())throw Error('请选择文件夹');if(!this.roots.some(r=>r.path===real))this.roots.push({id:uid(real),path:real,label:label||path.basename(real),enabled:true});this.watch();this.changed();await this.scan();return this.snapshot();}
   async toggleRoot(id,enabled){const r=this.roots.find(r=>r.id===id);if(!r||typeof enabled!=='boolean')throw Error('来源设置无效');r.enabled=enabled;this.watch();await this.scan();this.changed();return this.snapshot();}
   watch(){
     this.watchers.forEach(w=>w.close());this.watchers=[];
-    for(const r of this.roots.filter(r=>r.enabled)){try{const watcher=fs.watch(r.path,{recursive:true},(_type,name)=>{if(!name||!String(name).split(path.sep).some(p=>p.startsWith('.')||SKIP.has(p)))this.schedule();});watcher.on('error',e=>{this.errors.push({source:r.label,error:e.message});this.changed();});this.watchers.push(watcher);}catch(e){this.errors.push({source:r.label,error:e.message});}}
+    for(const r of this.roots.filter(r=>r.enabled)){
+      const worker=fork(path.join(__dirname,'file-watcher.cjs'),[JSON.stringify({root:r.path,skip:[...SKIP]})],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','ignore','ignore','ipc']});worker.unref();worker.channel?.unref();
+      worker.on('message',message=>{if(this.closed)return;if(message.ready)this.schedule();if(message.events)this.applyEvents(r,message.events).catch(error=>{this.errors.push({source:r.label,error:error.message});this.changed();});if(message.error){this.errors.push({source:r.label,error:message.error});this.changed();}});
+      worker.on('error',error=>{if(!this.closed){this.errors.push({source:r.label,error:error.message});this.changed();}});
+      this.watchers.push({close:()=>{worker.removeAllListeners('message');worker.kill('SIGKILL');}});
+    }
     clearInterval(this.interval);if(this.pollMs)this.interval=setInterval(()=>this.schedule(),this.pollMs);this.interval?.unref();
   }
   schedule(){if(this.closed)return;clearTimeout(this.timer);this.timer=setTimeout(()=>this.scan().catch(e=>{this.errors.push({error:e.message});this.changed();}),this.debounceMs);this.timer.unref?.();}
@@ -91,18 +100,8 @@ class ProjectFiles extends EventEmitter {
     this.scanning=true;this.errors=[];this.changed();
     this.currentScan=this._scan().finally(()=>{this.scanning=false;this.lastScan=new Date().toISOString();this.changed();if(this.again){this.again=false;this.schedule();}this.processModel();});return this.currentScan;
   }
-  async _scan(){
-    const seen=new Set(),failedRoots=new Set();let visited=0,limited=false;
-    for(const root of this.roots.filter(r=>r.enabled).sort((a,b)=>b.path.length-a.path.length)){
-      try{if(await fsp.realpath(root.path)!==root.path)throw Error('目录指向已改变，请重新选择');}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,error:e.code||e.message});continue;}
-      const stack=[{path:root.path,depth:0}];
-      while(stack.length&&!this.closed){const current=stack.pop();let entries;try{entries=await fsp.readdir(current.path,{withFileTypes:true});}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,path:current.path,error:e.code||e.message});continue;}
-        for(const entry of entries){if(entry.name.startsWith('.')||entry.name.startsWith('~$')||SKIP.has(entry.name)||entry.isSymbolicLink())continue;
-          const target=path.join(current.path,entry.name);
-          if(entry.isDirectory()){if(current.depth<14&&!/\.(app|bundle|photoslibrary)$/i.test(entry.name))stack.push({path:target,depth:current.depth+1});continue;}
-          if(!entry.isFile()||!SUPPORTED.has(path.extname(entry.name).toLowerCase()))continue;
-          if(++visited>this.maxFiles){limited=true;break;}
-          try{const stat=await fsp.stat(target);const id=uid(`${stat.dev}:${stat.ino}:${stat.birthtimeMs}`);if(seen.has(id))continue;seen.add(id);
+  async ingest(target,root,stat){
+    const id=uid(`${stat.dev}:${stat.ino}:${stat.birthtimeMs}`);
             const signature=`${stat.size}:${stat.mtimeMs}`,previous=this.files.get(id),parsed=named(target,root.path,this.catalog);
             const same=previous&&previous.signature===signature&&previous.path===target;
             let file={...parsed,id,path:target,sourceId:root.id,source:root.label,size:stat.size,mtime:stat.mtimeMs,signature,indexedAt:new Date().toISOString()};
@@ -111,26 +110,60 @@ class ProjectFiles extends EventEmitter {
             if(this.manual[id])file={...file,...this.manual[id],method:'manual',reason:'手动确认的归属'};
             this.files.set(id,file);
             if(!same&&!file.conflict&&(file.state==='pending'||(file.kind==='sheet'&&!file.stage)))this.modelQueue.push({id,signature});
-          }catch(e){this.errors.push({source:root.label,path:target,error:e.code||e.message});}
-          if(visited%100===0)await new Promise(r=>setImmediate(r));
+    return id;
+  }
+  async applyEvents(root,events){
+    for(const event of events.slice(0,3000)){
+      if(this.closed||!root.enabled||typeof event.path!=='string'||!inside(root.path,event.path))continue;
+      const specific=this.roots.filter(r=>r.enabled&&inside(r.path,event.path)).sort((a,b)=>b.path.length-a.path.length)[0];if(specific?.id!==root.id)continue;
+      const relative=path.relative(root.path,event.path);
+      if(relative.split(path.sep).some(p=>p.startsWith('.')||p.startsWith('~$')||SKIP.has(p)||/\.(app|bundle|photoslibrary)$/i.test(p)))continue;
+      if(event.type==='delete'){
+        for(const [id,file]of this.files)if(file.sourceId===root.id&&(file.path===event.path||inside(event.path,file.path)))this.files.delete(id);
+        continue;
+      }
+      try{const stat=await this.metadata.lstat(event.path);
+        if(stat.isDirectory()){this.schedule();continue;}
+        if(!stat.isFile()||stat.isSymbolicLink()||!SUPPORTED.has(path.extname(event.path).toLowerCase()))continue;
+        if(this.files.size>=this.maxFiles&&!Array.from(this.files.values()).some(f=>f.path===event.path))continue;
+        await this.ingest(event.path,root,stat);
+      }catch{this.schedule();}
+    }
+    this.catalog=this.catalog.filter(p=>p.source!=='discovered'||[...this.files.values()].some(f=>f.projectCode===p.code||f.linkedCodes?.includes(p.code)));
+    this.changed();this.processModel();
+  }
+  async _scan(){
+    const seen=new Set(),failedRoots=new Set(),started=Date.now();let visited=0,limited=false;
+    for(const root of this.roots.filter(r=>r.enabled).sort((a,b)=>b.path.length-a.path.length)){
+      try{if(await this.metadata.realpath(root.path)!==root.path)throw Error('目录指向已改变，请重新选择');}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,error:e.code||e.message});continue;}
+      const stack=[{path:root.path,depth:0}];
+      while(stack.length&&!this.closed){if(Date.now()-started>20000){limited=true;break;}const current=stack.pop();let entries;try{entries=await this.metadata.readdir(current.path);}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,path:current.path,error:e.code||e.message});continue;}
+        for(const entry of entries){if(this.closed)break;if(entry.name.startsWith('.')||entry.name.startsWith('~$')||SKIP.has(entry.name)||entry.isSymbolicLink())continue;
+          const target=path.join(current.path,entry.name);
+          if(entry.isDirectory()){if(current.depth<14&&!/\.(app|bundle|photoslibrary)$/i.test(entry.name))stack.push({path:target,depth:current.depth+1});continue;}
+          if(!entry.isFile()||!SUPPORTED.has(path.extname(entry.name).toLowerCase()))continue;
+          if(++visited>this.maxFiles){limited=true;break;}
+          try{const stat=await this.metadata.lstat(target);if(!stat.isFile()||stat.isSymbolicLink())continue;const id=uid(`${stat.dev}:${stat.ino}:${stat.birthtimeMs}`);if(seen.has(id))continue;seen.add(id);await this.ingest(target,root,stat);
+          }catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,path:target,error:e.code||e.message});}
+          if(visited%100===0){this.changed();await new Promise(r=>setImmediate(r));}
         }
         if(limited)break;
       }
       if(limited)break;
     }
-    if(!limited)for(const[id,file]of this.files)if(!seen.has(id)&&!failedRoots.has(file.sourceId))this.files.delete(id);
+    if(!limited)for(const[id,file]of this.files)if(!seen.has(id)&&!failedRoots.has(file.sourceId)&&Date.parse(file.indexedAt)<=started)this.files.delete(id);
     if(!limited)this.catalog=this.catalog.filter(p=>p.source!=='discovered'||[...this.files.values()].some(f=>f.projectCode===p.code||f.linkedCodes?.includes(p.code)));
-    if(limited)this.errors.push({error:`本轮扫描达到 ${this.maxFiles} 份文件上限，请缩小监听目录`});
+    if(limited)this.errors.push({error:`本轮扫描达到文件数量或时间上限，已保留索引；请缩小监听目录`});
     this.modelQueue=this.modelQueue.filter((item,i,a)=>a.findIndex(x=>x.id===item.id&&x.signature===item.signature)===i).sort((a,b)=>(this.files.get(b.id)?.mtime||0)-(this.files.get(a.id)?.mtime||0));
   }
   async processModel(){
     if(this.closed||this.modelBusy||!this.model||this.model.state!=='ready')return;
-    const targets=this.catalog.filter(p=>!p.example||[...this.files.values()].some(f=>f.projectCode===p.code));
-    if(!targets.length)return;
+    const eligible=()=>this.catalog.filter(p=>(p.example||p.source==='discovered')?[...this.files.values()].some(f=>f.state==='linked'&&(f.projectCode===p.code||f.linkedCodes?.includes(p.code))):true);
+    if(!eligible().length)return;
     this.modelBusy=true;this.changed();
-    try{while(this.modelQueue.length&&!this.closed){const item=this.modelQueue.shift(),file=this.files.get(item.id);if(!file||file.signature!==item.signature||(file.state!=='pending'&&!(file.kind==='sheet'&&!file.stage))||file.conflict||this.manual[file.id])continue;
+    try{while(this.modelQueue.length&&!this.closed){const targets=eligible();if(!targets.length)break;const item=this.modelQueue.shift(),file=this.files.get(item.id);if(!file||file.signature!==item.signature||(file.state!=='pending'&&!(file.kind==='sheet'&&!file.stage))||file.conflict||this.manual[file.id])continue;
       // The extractor never executes document scripts, formulas, or macros.
-      try{await this.resolve(file.id);const extracted=await this.extract(file);if(this.closed)break;file.contentNote=extracted.note;
+      try{await this.resolve(file.id);const extracted=await this.extract(file,{signal:this.extractAbort.signal});if(this.closed)break;file.contentNote=extracted.note;
         const result=await this.model.classify(file,targets,extracted.text);
         if(this.closed||this.files.get(file.id)?.signature!==item.signature||this.manual[file.id])continue;
         const code=codeKey(result.projectCode),candidate=this.catalog.find(p=>p.code===code);
@@ -150,12 +183,12 @@ class ProjectFiles extends EventEmitter {
   snapshot(){return {revision:this.revision,scanning:this.scanning,modelBusy:this.modelBusy,queued:this.modelQueue.length,lastScan:this.lastScan,roots:this.roots,errors:this.errors.slice(-12),projects:this.catalog,files:[...this.files.values()].filter(f=>this.roots.some(r=>r.enabled&&r.id===f.sourceId)),model:{state:this.model?.state||'stopped',model:this.model?.constructor?.name==='LocalFileModel'?'qwen3:0.6b':''}};}
   async resolve(id){
     const file=this.files.get(id);if(!file)throw Error('文件已移除，请重新扫描');
-    const stat=await fsp.lstat(file.path);if(!stat.isFile()||stat.isSymbolicLink()||!SUPPORTED.has(path.extname(file.path).toLowerCase()))throw Error('不能打开此文件类型');
-    const real=await fsp.realpath(file.path);if(!this.roots.some(r=>r.enabled&&inside(r.path,real)))throw Error('文件已不在监听目录内');return real;
+    const stat=await this.metadata.lstat(file.path);if(!stat.isFile()||stat.isSymbolicLink()||!SUPPORTED.has(path.extname(file.path).toLowerCase()))throw Error('不能打开此文件类型');
+    const real=await this.metadata.realpath(file.path);if(!this.roots.some(r=>r.enabled&&inside(r.path,real)))throw Error('文件已不在监听目录内');return real;
   }
   async assign(id,code){await this.resolve(id);const file=this.files.get(id),project=this.catalog.find(p=>p.code===codeKey(code));if(!project)throw Error('请选择已有项目');
     const value={state:'linked',projectCode:project.code,product:project.name};this.manual[id]={...this.manual[id],...value};Object.assign(file,value,{method:'manual',reason:'手动确认的归属'});this.changed();await this.save();return this.snapshot();}
   async linkBorrowed(id,code){await this.resolve(id);const file=this.files.get(id);if(!file.borrowed||!this.catalog.some(p=>p.code===codeKey(code)))throw Error('借用关系无效');const value={linkedCodes:[...new Set([...file.linkedCodes,codeKey(code)])]};this.manual[id]={...this.manual[id],...value};Object.assign(file,value);this.changed();await this.save();return this.snapshot();}
-  async close(){this.closed=true;clearInterval(this.interval);clearTimeout(this.timer);clearTimeout(this.saveTimer);this.watchers.forEach(w=>w.close());await this.currentScan?.catch(()=>{});await this.save();}
+  async close(){this.closed=true;this.metadata.close();this.extractAbort.abort();clearInterval(this.interval);clearTimeout(this.timer);clearTimeout(this.saveTimer);this.watchers.forEach(w=>w.close());await this.currentScan?.catch(()=>{});await this.save();}
 }
-module.exports={ProjectFiles,named,excerpt,extractInWorker,inside,SUPPORTED};
+module.exports={ProjectFiles,named,excerpt,extractInProcess,inside,SUPPORTED};

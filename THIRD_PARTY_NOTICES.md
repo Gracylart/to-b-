@@ -178,3 +178,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 - SheetJS Community Edition 0.20.3，Apache-2.0，来源为官方 CDN `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`。版权与完整许可保留在随应用打包的 `node_modules/xlsx/LICENSE` 中。
 - 本机独立安装的 Ollama v0.40.11（MIT）和 Qwen3-0.6B（Apache-2.0）不随应用二进制重复分发。安装来源、权重校验值和本机存放位置见 `docs/project-file-integration.md`。
+
+## 原生文件监听
+
+使用 [@parcel/watcher 2.6.0](https://github.com/parcel-bundler/watcher)（MIT）及其 darwin-arm64 原生模块，许可原文随依赖包保留。Copyright (c) 2017-present Devon Govett。macOS 使用 FSEvents 后端，在独立进程中订阅目录树的变更。

@@ -1,3 +1,4 @@
 'use strict';
-const {parentPort,workerData}=require('node:worker_threads');
-require('./project-files.cjs').excerpt(workerData).then(result=>parentPort.postMessage(result)).catch(error=>parentPort.postMessage({error:error.message}));
+process.on('disconnect',()=>process.exit(0));
+const input=JSON.parse(process.argv[2]);
+require('./project-files.cjs').excerpt(input).then(result=>{if(process.connected)process.send(result,()=>process.exit(0));}).catch(error=>{if(process.connected)process.send({error:error.message},()=>process.exit(1));});

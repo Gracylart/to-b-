@@ -8,6 +8,8 @@ const {
   isTrustedDocument, isAllowedExternalURL, trayStatus, panelBounds, sanitizeWindowSize
 } = require('./policy.cjs');
 
+const { compactBounds, createEdgeDock } = require('./edge-dock.cjs');
+
 const APP_NAME = '文案审核台 · Studio';
 const INDEX_PATH = path.join(__dirname, '..', 'dist', 'index.html');
 const INITIAL_STATUS = { state: 'idle', progress: 0, issues: 0 };
@@ -29,7 +31,9 @@ let blurTimer;
 let projectFiles;
 let fileModel;
 let fileLibraryLoading;
-let nativeLayout = {mode:'workspace',peek:false};
+let nativeLayout = {mode:'workspace',peek:false,autoHide:true,edge:'right'};
+let edgeDock;
+let rendererBusy = false;
 
 app.setName(APP_NAME);
 app.setAppUserModelId('com.gracylart.copyreviewdesk.studio');
@@ -50,6 +54,12 @@ function loadPreferences() {
   try {
     windowSize = sanitizeWindowSize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'window-size.json'), 'utf8')));
   } catch { windowSize = sanitizeWindowSize(); }
+  try {
+    const saved=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'native-layout.json'),'utf8'));
+    if(['workspace','sidebar','horizontal'].includes(saved.mode))nativeLayout.mode=saved.mode;
+    nativeLayout.autoHide=saved.autoHide!==false;
+    nativeLayout.edge=saved.edge==='left'?'left':'right';
+  } catch {}
   // The OS is authoritative, including changes made in System Settings.
   if (app.isPackaged && process.platform === 'darwin') {
     preferences.launchAtLogin = app.getLoginItemSettings().openAtLogin;
@@ -77,7 +87,7 @@ function updatePreferences(value) {
   }
   preferences = next;
   savePreferences();
-  if (panel && !panel.isDestroyed()) panel.setAlwaysOnTop(preferences.pinned, 'floating');
+  if (panel && !panel.isDestroyed()) panel.setAlwaysOnTop(nativeLayout.mode!=='workspace'||preferences.pinned, 'floating');
   return { ...preferences };
 }
 
@@ -89,28 +99,48 @@ function positionPanel() {
   panel.setBounds(panelBounds(bounds, display.workArea, windowSize), false);
 }
 
+function layoutArea() {
+  return screen.getDisplayMatching(panel?.getBounds?.()||{x:0,y:0,width:1,height:1}).workArea;
+}
 function applyNativeLayout() {
   if(!panel||panel.isDestroyed())return nativeLayout;
-  const display=screen.getDisplayMatching(panel.getBounds?.()||{x:0,y:0,width:1,height:1});
-  const area=display.workArea;
+  const area=layoutArea();
   if(nativeLayout.mode==='workspace'){
     panel.setMinimumSize(640,520);panel.setResizable(true);panel.setWindowButtonVisibility?.(true);
     panel.setAlwaysOnTop(preferences.pinned,'floating');
     const trayBounds=tray?.getBounds()||{x:0,y:0,width:0,height:0};panel.setBounds(panelBounds(trayBounds,area,windowSize),false);
   }else{
     panel.setMinimumSize(64,64);panel.setResizable(false);panel.setWindowButtonVisibility?.(false);panel.setAlwaysOnTop(true,'floating');
-    const horizontal=nativeLayout.mode==='horizontal',width=horizontal?Math.min(620,area.width-16):nativeLayout.peek?440:64;
-    const height=horizontal?(nativeLayout.peek?480:64):Math.min(windowSize.height,area.height-16);
-    panel.setBounds({x:horizontal?Math.round(area.x+(area.width-width)/2):area.x+8,y:horizontal?area.y+area.height-height-8:area.y+8,width,height},false);
+    panel.setBounds(compactBounds(area,nativeLayout,windowSize),false);
   }
-  panel.webContents.send('review:layout',nativeLayout);return {...nativeLayout};
+  panel.webContents.send('review:layout',{...nativeLayout});edgeDock?.sync();return {...nativeLayout};
 }
 function setNativeLayout(value={}) {
   if(value.mode!==undefined&&!['workspace','sidebar','horizontal'].includes(value.mode))throw Error('无效窗口形态');
   if(value.peek!==undefined&&typeof value.peek!=='boolean')throw Error('无效文件面板状态');
-  nativeLayout={mode:value.mode||nativeLayout.mode,peek:value.mode==='workspace'?false:(value.peek??false)};
+  if(value.autoHide!==undefined&&typeof value.autoHide!=='boolean')throw Error('无效收起状态');
+  if(value.edge!==undefined&&!['left','right'].includes(value.edge))throw Error('无效屏幕边缘');
+  const previous=nativeLayout.mode;
+  nativeLayout={...nativeLayout,mode:value.mode||nativeLayout.mode,peek:value.mode==='workspace'?false:(value.peek??false),
+    autoHide:value.autoHide??nativeLayout.autoHide,edge:value.edge||nativeLayout.edge};
   const dest=path.join(app.getPath('userData'),'native-layout.json');
-  fs.writeFileSync(dest,JSON.stringify({mode:nativeLayout.mode}),{mode:0o600});return applyNativeLayout();
+  fs.writeFileSync(dest,JSON.stringify({mode:nativeLayout.mode,autoHide:nativeLayout.autoHide,edge:nativeLayout.edge}),{mode:0o600});
+  applyNativeLayout();
+  if(previous!==nativeLayout.mode||value.autoHide!==undefined) {
+    if(nativeLayout.mode!=='workspace'&&nativeLayout.autoHide)edgeDock?.show(false);
+    else if(readyToShow)panel.show();
+  }
+  return {...nativeLayout};
+}
+function revealEdge(focus=false) {
+  if(!panel||panel.isDestroyed()||!readyToShow)return;
+  clearTimeout(blurTimer);applyNativeLayout();panel.showInactive();
+  if(focus){panel.show();app.focus?.({steal:true});panel.focus();}
+}
+function retractEdge() {
+  if(!panel||panel.isDestroyed())return;
+  panel.hide();rendererBusy=false;
+  if(nativeLayout.peek){nativeLayout.peek=false;applyNativeLayout();}
 }
 async function getFileLibrary(){
   if(projectFiles)return projectFiles;
@@ -129,6 +159,7 @@ async function getFileLibrary(){
 
 function hidePanel() {
   if (!panel || panel.isDestroyed() || nativeSheetDepth > 0 || pickerActive) return;
+  if(edgeDock?.hide())return;
   panel.hide();
 }
 
@@ -142,7 +173,7 @@ function showPanel(destination) {
   clearTimeout(blurTimer);
   positionPanel();
   ignoreBlurUntil = Date.now() + 350;
-  panel.show();
+  if(!edgeDock?.show(true))panel.show();
   app.focus?.({steal:true});
   panel.focus();
   if (pendingNavigation) {
@@ -155,7 +186,7 @@ function scheduleBlurHide() {
   clearTimeout(blurTimer);
   blurTimer = setTimeout(() => {
     if (!panel || panel.isDestroyed() || panel.isFocused()) return;
-    if (preferences.pinned || nativeSheetDepth > 0 || pickerActive || Date.now() < ignoreBlurUntil) return;
+    if (nativeLayout.mode!=='workspace' || preferences.pinned || nativeSheetDepth > 0 || pickerActive || Date.now() < ignoreBlurUntil) return;
     panel.hide();
   }, Math.max(180, ignoreBlurUntil - Date.now() + 30));
 }
@@ -173,6 +204,8 @@ function createTrayMenu() {
     {label:'展开工作区',click:()=>{setNativeLayout({mode:'workspace'});showPanel();}},
     {label:'竖向文件侧栏',click:()=>{setNativeLayout({mode:'sidebar'});showPanel();}},
     {label:'横向文件栏',click:()=>{setNativeLayout({mode:'horizontal'});showPanel();}},
+    {label:'自动收起文件栏',type:'checkbox',checked:nativeLayout.autoHide,click:item=>setNativeLayout({autoHide:item.checked})},
+    {label:'停靠位置',submenu:[{label:'屏幕右侧',type:'radio',checked:nativeLayout.edge==='right',click:()=>setNativeLayout({edge:'right'})},{label:'屏幕左侧',type:'radio',checked:nativeLayout.edge==='left',click:()=>setNativeLayout({edge:'left'})}]},
     { label: '项目总览', click: () => showPanel('home') },
     { label: '审核工作台', click: () => showPanel('review') },
     { type: 'separator' },
@@ -220,10 +253,12 @@ function secureContents(contents) {
 
 function createPanel() {
   readyToShow = false;
+  const compact=nativeLayout.mode!=='workspace';
+  const initialBounds=compact?compactBounds(screen.getPrimaryDisplay().workArea,nativeLayout,windowSize):windowSize;
   panel = new BrowserWindow({
-    ...windowSize,
-    minWidth: 640,
-    minHeight: 520,
+    ...initialBounds,
+    minWidth: compact?64:640,
+    minHeight: compact?64:520,
     maxWidth: 1800,
     maxHeight: 1200,
     show: false,
@@ -236,12 +271,12 @@ function createPanel() {
     title: APP_NAME,
     hasShadow: true,
     roundedCorners: true,
-    resizable: true,
+    resizable: !compact,
     minimizable: true,
     maximizable: true,
     fullscreenable: true,
     skipTaskbar: true,
-    alwaysOnTop: preferences.pinned,
+    alwaysOnTop: compact||preferences.pinned,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       sandbox: true,
@@ -255,6 +290,7 @@ function createPanel() {
     }
   });
   panel.setMenu(null);
+  if(compact)panel.setWindowButtonVisibility?.(false);
   panel.webContents.on('did-fail-load',(_event,code,description)=>console.error('Desktop load failed:',code,description));
   panel.webContents.on('console-message',(event)=>{if(event.level==='error'||event.level===3)console.error('Desktop renderer:',event.message);});
   if(process.env?.REVIEW_DESK_DIAGNOSTICS==='1'){
@@ -275,6 +311,7 @@ function createPanel() {
     } catch (error) { console.warn('Cannot save window size:', error.message); }
   });
   panel.on('focus', () => clearTimeout(blurTimer));
+  panel.on('blur',()=>{rendererBusy=false;});
   panel.on('sheet-begin', () => { nativeSheetDepth += 1; clearTimeout(blurTimer); });
   panel.on('sheet-end', () => {
     nativeSheetDepth = Math.max(0, nativeSheetDepth - 1);
@@ -289,9 +326,9 @@ function createPanel() {
   const showInitialPanel=()=>{
     if(readyToShow)return;
     readyToShow = true;
-    try{const saved=JSON.parse(fs.readFileSync(path.join(app.getPath('userData'),'native-layout.json'),'utf8'));if(['sidebar','horizontal'].includes(saved.mode))nativeLayout={mode:saved.mode,peek:false};}catch{}
-    if(nativeLayout.mode!=='workspace')applyNativeLayout();
-    if (showRequested || pendingNavigation) showPanel();
+    applyNativeLayout();
+    if(nativeLayout.mode!=='workspace'&&nativeLayout.autoHide){showRequested=false;edgeDock?.sync();}
+    else if (showRequested || pendingNavigation) showPanel();
   };
   panel.once('ready-to-show',showInitialPanel);
   // Accessory applications may not produce their first hidden paint until
@@ -315,13 +352,16 @@ function trustedSender(event) {
 }
 
 function installIPC() {
+  ipcMain.on('review:edge-busy',(event,value)=>{if(trustedSender(event)&&typeof value==='boolean')rendererBusy=value;});
   ipcMain.handle('review:layout',async(event,value)=>{
     if(!trustedSender(event))throw Error('Untrusted sender');
+    if(value)edgeDock?.touch();
     return value?setNativeLayout(value):{...nativeLayout};
   });
   ipcMain.handle('review:files',async(event,action,payload={})=>{
     if(!trustedSender(event))throw Error('Untrusted sender');
     if(!['snapshot','catalog','scan','toggle-root','choose-root','open','reveal','assign','borrow','model-start'].includes(action))throw Error('Unsupported file action');
+    if(!['snapshot','catalog'].includes(action))edgeDock?.touch();
     const library=await getFileLibrary();
     if(action==='snapshot')return library.snapshot();
     if(action==='catalog'){library.setCatalog(payload.projects);return library.snapshot();}
@@ -425,8 +465,11 @@ if (!app.requestSingleInstanceLock()) {
     });
     tray.on('right-click', () => tray.popUpContextMenu(createTrayMenu()));
     createPanel();
-    screen.on('display-metrics-changed', () => { if (panel?.isVisible()) positionPanel(); });
-    screen.on('display-removed', () => { if (panel?.isVisible()) positionPanel(); });
+    edgeDock=createEdgeDock({BrowserWindow,screen,ipcMain,getPanel:()=>panel,getLayout:()=>nativeLayout,getArea:layoutArea,held:()=>nativeSheetDepth>0||pickerActive||rendererBusy,reveal:revealEdge,retract:retractEdge});
+    edgeDock.sync();
+    getFileLibrary().catch(error=>console.warn('File library:',error.message));
+    screen.on('display-metrics-changed', () => { positionPanel();edgeDock?.sync(); });
+    screen.on('display-removed', () => { positionPanel();edgeDock?.sync(); });
     app.on('activate', () => showPanel());
   }).catch((error) => {
     console.error('Cannot initialize review desk:', error.message);
@@ -434,10 +477,11 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on('window-all-closed', () => {});
   app.on('before-quit', (event) => {
-    if(!quitting&&projectFiles){event.preventDefault();quitting=true;fileModel?.stop();projectFiles.close().finally(()=>app.quit());return;}
+    if(!quitting&&projectFiles){event.preventDefault();quitting=true;edgeDock?.close();edgeDock=undefined;fileModel?.stop();projectFiles.close().finally(()=>app.quit());return;}
     quitting = true;
     clearTimeout(blurTimer);
     clearTimeout(pickerTimer);
+    edgeDock?.close();edgeDock=undefined;
     tray?.destroy();
     fileModel?.stop();
   });

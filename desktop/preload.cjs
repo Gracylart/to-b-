@@ -64,6 +64,11 @@ function pickerFinished() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const reportEditing=()=>ipcRenderer.send('review:edge-busy',Boolean(document.hasFocus()&&document.activeElement?.matches('input:not([type=checkbox]):not([type=file]),textarea,select,[contenteditable=true]')));
+  document.addEventListener('focusin',reportEditing);
+  document.addEventListener('focusout',()=>setTimeout(reportEditing,0));
+  window.addEventListener('blur',()=>ipcRenderer.send('review:edge-busy',false));
+  window.addEventListener('focus',reportEditing);
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;

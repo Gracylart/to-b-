@@ -160,7 +160,7 @@ test('CSP blocks network, script injection, frames, plugins, and form submission
 // Execute the actual main-process wiring with Electron and disk I/O replaced.
 // This checks trust decisions at the IPC handlers, without starting a GUI or
 // changing the host's preferences, login items, files, or browser.
-async function mainHarness() {
+async function mainHarness(savedLayout) {
   const invocations = new Map();
   const ipcMain = new EventEmitter();
   ipcMain.handle = (name, callback) => invocations.set(name, callback);
@@ -200,6 +200,8 @@ async function mainHarness() {
     show() { this.showCount += 1; }
     focus() {}
     setBounds(bounds) {this.bounds=bounds;}
+    getBounds(){return this.bounds||this.options;}
+    setMinimumSize(){}setResizable(){}setWindowButtonVisibility(){}
   }
   class MockTray extends EventEmitter {
     constructor() { super(); trays.push(this); }
@@ -239,7 +241,7 @@ async function mainHarness() {
   electron.screen.getPrimaryDisplay=()=>({workArea:{x:0,y:24,width:1600,height:1000}});
   electron.screen.getDisplayMatching=electron.screen.getPrimaryDisplay;
   const disk = {
-    readFileSync(file) { reads.push(file); throw new Error('No saved preferences'); },
+    readFileSync(file) { reads.push(file);if(savedLayout&&file.endsWith('native-layout.json'))return JSON.stringify(savedLayout); throw new Error('No saved preferences'); },
     mkdirSync() {},
     writeFileSync: (...args) => writes.push(args),
     renameSync() {},
@@ -251,6 +253,9 @@ async function mainHarness() {
       if (name === 'node:path') return path;
       if (name === 'node:fs') return disk;
       if (name === './policy.cjs') return policy;
+      if(name==='./edge-dock.cjs')return {...require('../desktop/edge-dock.cjs'),createEdgeDock:()=>({sync(){},show(){return false;},hide(){return false;},touch(){},close(){}})};
+      if(name==='./project-files.cjs')return {ProjectFiles:class{async init(){throw Error('No file library in wiring test');}}};
+      if(name==='./local-file-model.cjs')return {LocalFileModel:class{}};
       throw new Error(`Unexpected dependency: ${name}`);
     },
     __dirname: desktopPath,
@@ -455,4 +460,13 @@ test('desktop acceptance profile never reads or writes the original user data', 
   invocations.get('review:preferences:set')(trustedEvent(), { pinned: true });
   assert.ok(writes.length > 0);
   assert.ok(writes.every(([file]) => file.startsWith(profile + path.sep)));
+});
+
+test('cold compact startup creates the saved dimensions before loading and leaves auto-hide concealed',async()=>{
+ for(const mode of ['sidebar','horizontal']){
+ const {panel}=await mainHarness({mode,edge:'right',autoHide:true});
+ assert.equal(panel.options.width,mode==='sidebar'?64:620);assert.equal(panel.options.minWidth,64);assert.equal(panel.options.resizable,false);
+ panel.webContents.emit('did-finish-load');assert.equal(panel.showCount,0);
+ assert.equal(panel.bounds.width,mode==='sidebar'?64:620);
+ }
 });

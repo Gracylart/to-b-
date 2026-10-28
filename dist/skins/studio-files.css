@@ -73,3 +73,15 @@
 :root[data-window-mode=horizontal] .file-peek{width:100%;flex:1;border-left:0;border-bottom:1px solid var(--cds-border)}
 @media(max-width:760px){:root[data-window-mode=workspace] .studio-shell{grid-template-columns:64px 220px minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.studio-shell{transition:none}}
+
+/* The original icon rail stays against the chosen screen edge. */
+:root[data-window-mode=sidebar][data-dock-edge=right] .studio-shell{grid-template-columns:minmax(0,1fr) 64px}
+:root[data-window-mode=sidebar][data-dock-edge=right] .studio-sidebar{grid-column:2;grid-row:1;border-left:1px solid var(--cds-border);border-right:0}
+:root[data-window-mode=sidebar][data-dock-edge=right] .file-peek:not([hidden]){grid-column:1;grid-row:1;border-left:0;border-right:1px solid var(--cds-border)}
+:root[data-window-mode=sidebar] .studio-sidebar,:root[data-window-mode=horizontal] .studio-sidebar{-webkit-app-region:no-drag}
+
+.file-source-shortcut{display:none;border:0;background:transparent;color:var(--cds-text-secondary);-webkit-app-region:no-drag}
+:root[data-window-mode=sidebar] .file-source-shortcut,:root[data-window-mode=horizontal] .file-source-shortcut{display:grid;place-items:center;flex:0 0 52px;min-width:52px;height:52px;margin-top:auto;border-top:1px solid var(--cds-border)}
+.file-source-shortcut svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+.file-source-shortcut:hover{background:var(--cds-alpha-1);color:var(--cds-text-primary)}
+:root[data-window-mode=horizontal] .file-source-shortcut{height:64px;margin-top:0;margin-left:auto;border-top:0;border-left:1px solid var(--cds-border)}
