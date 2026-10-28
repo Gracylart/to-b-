@@ -34,6 +34,8 @@ svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.9; strok
 .brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-left: 16px; color: #eff0f3; font-size: 24px; font-weight: 600; letter-spacing: -.025em; }
 sup { font-size: .46em; font-weight: 600; line-height: 0; vertical-align: super; }
 .brand-caret { width: 20px; height: 20px; margin-left: 12px; color: #a5a9b1; }
+.brand-caret svg { width: 100%; height: 100%; }
+.brand-name[hidden] + .brand-caret { display: none !important; }
 .panel-toggle { width: 40px; height: 40px; display: grid; place-items: center; margin-left: auto; border-radius: 10px; color: #a4a9b2; }
 .panel-toggle svg { width: 26px; height: 26px; }
 .panel-toggle:hover { color: #e2e4e8; background: #1b2129; }

@@ -20,6 +20,12 @@
     node.dataset.replicaEditId = id;
     items.set(id, node);
   });
+  // Keep existing item IDs intact so saved edits still refer to the same nodes.
+  const brandCaret = replica.querySelector('.brand-caret');
+  if (brandCaret) {
+    brandCaret.dataset.replicaEditId = 'brand-caret';
+    items.set('brand-caret', brandCaret);
+  }
 
   const parents = [...new Set(candidates.map(node => node.parentElement))]
     .filter(node => node && node.matches('.rail-nav,.rail-bottom,.main-links,.section-items,.project-children,.panel-scroll'));
@@ -90,7 +96,7 @@
   let dropTarget = null;
 
   function textTarget(node) {
-    if (node.matches('.rail-logo,.rail-nav > button,.rail-bottom > button,.panel-head .brand-mark,.section-actions > button')) {
+    if (node.matches('.rail-logo,.rail-nav > button,.rail-bottom > button,.panel-head .brand-mark,.brand-caret,.section-actions > button')) {
       return {attribute: 'aria-label'};
     }
     let target = node;
