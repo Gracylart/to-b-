@@ -38,3 +38,14 @@ test('edge grip cannot invoke reveal from a sibling page, child frame, or unrela
  held=true;assert.equal(dock.hide(),false);held=false;assert.equal(dock.hide(),true);assert.equal(w.visible,true);
  layout={...layout,mode:'workspace'};dock.sync();assert.equal(w.visible,false);dock.close();assert.equal(w.destroyed,true);assert.equal(ipc.listenerCount('review:edge-reveal'),0);
 });
+
+test('a late AppKit restore cannot leave the rail visible while the dock believes it is concealed',async()=>{
+ let visible=true,retracted=0;
+ const ipc=new EventEmitter();
+ class Window{
+  constructor(bounds){this.bounds=bounds;this.webContents=new EventEmitter();this.webContents.mainFrame={url:''};this.webContents.setWindowOpenHandler=()=>{};}
+  isDestroyed(){return false;}setMenu(){}setBounds(bounds){this.bounds=bounds;}getBounds(){return this.bounds;}showInactive(){}hide(){}destroy(){}loadFile(){return Promise.resolve();}
+ }
+ const dock=createEdgeDock({BrowserWindow:Window,screen:{getCursorScreenPoint:()=>({x:300,y:300})},ipcMain:ipc,getPanel:()=>({isVisible:()=>visible,getBounds:()=>({x:1536,y:200,width:64,height:720})}),getLayout:()=>({mode:'sidebar',autoHide:true,edge:'right'}),getArea:()=>({x:0,y:24,width:1600,height:1000}),held:()=>false,reveal:()=>{},retract:()=>{visible=false;retracted++;}});
+ dock.sync();await new Promise(resolve=>setTimeout(resolve,180));assert.equal(visible,false);assert.equal(retracted,1);dock.close();
+});

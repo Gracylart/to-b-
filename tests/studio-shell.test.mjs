@@ -10,7 +10,7 @@ const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8')
 test('Studio retains its isolated native identity and integrates the completed dual sidebar',()=>{
   assert.match(main,/文案审核台 · Studio/);
   assert.match(main,/com\.gracylart\.copyreviewdesk\.studio/);
-  assert.match(main,/titleBarStyle: 'hiddenInset'/);
+  assert.match(main,/frame: false/);assert.match(main,/minimizable: false/);
   assert.match(html,/class="studio-sidebar"/);
   assert.equal((html.match(/<aside\b/g)||[]).length,2);
   assert.match(html,/class="app-rail rail"/);

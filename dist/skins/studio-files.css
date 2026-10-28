@@ -85,3 +85,5 @@
 .file-source-shortcut svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
 .file-source-shortcut:hover{background:var(--cds-alpha-1);color:var(--cds-text-primary)}
 :root[data-window-mode=horizontal] .file-source-shortcut{height:64px;margin-top:0;margin-left:auto;border-top:0;border-left:1px solid var(--cds-border)}
+
+.file-section-note{font-size:12px;color:var(--cds-text-muted);margin:0 0 15px;line-height:1.7}

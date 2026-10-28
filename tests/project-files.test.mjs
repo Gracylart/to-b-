@@ -75,3 +75,24 @@ test('overlapping root events retain the more specific project source',async t=>
  assert.equal(record.sourceId,projectRoot.id);await lib.applyEvents(lib.roots[0],[{type:'update',path:file}]);
  assert.equal(lib.snapshot().files.find(f=>f.path===file).sourceId,projectRoot.id);
 });
+
+test('denied root permissions pause recurring scans and explicit re-selection re-enables the existing root',async t=>{
+ const {source,lib}=await fixture(t);const root=lib.roots[0];
+ assert.equal(lib.permissionDenied(root,{code:'EPERM',message:'Operation not permitted'}),true);
+ assert.equal(root.enabled,false);assert.equal(root.permissionRequired,true);
+ await lib.addRoot(source);assert.equal(lib.roots.length,1);assert.equal(root.enabled,true);assert.equal(root.permissionRequired,false);
+});
+
+test('newly discovered file events are classified before an older desktop backlog',async t=>{
+ const {source,lib}=await fixture(t,{model:{state:'stopped'}});const old=path.join(source,'历史文档.pdf');await writeFile(old,'old');await lib.scan();
+ const newest=path.join(source,'最新文档.pdf');await writeFile(newest,'new');await lib.applyEvents(lib.roots[0],[{type:'create',path:newest}]);
+ const record=lib.snapshot().files.find(file=>file.path===newest);assert.equal(lib.modelQueue[0].id,record.id);
+});
+
+test('a scan during model inference cannot discard a valid association on the refreshed file record',async t=>{
+ let complete;const model={state:'ready',classify:()=>new Promise(resolve=>{complete=resolve;})};
+ const {source,lib}=await fixture(t,{model,extract:async()=>({text:'Project R501P packaging',note:''})});
+ const file=path.join(source,'无编号文件.pdf');await writeFile(file,'fixture');await lib.scan();await waitFor(()=>Boolean(complete));
+ await lib.scan();complete({projectCode:'R501P',product:'便携风扇',material:'packaging',stage:'',kind:'material',evidence:'Project R501P'});
+ await waitFor(()=>!lib.modelBusy);assert.equal(lib.snapshot().files.find(record=>record.path===file).state,'linked');assert.equal(lib.snapshot().files.find(record=>record.path===file).projectCode,'R501P');
+});

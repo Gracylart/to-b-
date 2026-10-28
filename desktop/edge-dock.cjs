@@ -84,6 +84,12 @@ function createEdgeDock({ BrowserWindow, screen, ipcMain, getPanel, getLayout, g
       const point = screen.getCursorScreenPoint();
       const panel = getPanel();
       if(diagnostics&&Date.now()-lastDiagnostic>2000){lastDiagnostic=Date.now();trace({point,grip:grip?.getBounds(),panel:panel?.getBounds(),visible:panel?.isVisible(),held:held()});}
+      // AppKit can show a deminiaturized window after returnToDock already hid it.
+      // Reconcile native visibility so that this late show cannot leave a rail stuck.
+      if(panel?.isVisible()&&!intent.visible){
+        if(contains(panel.getBounds(),point,6)||held()){intent.show(Date.now());grip?.hide();}
+        else{retract();sync();}
+      }
       const action = intent.step({ now: Date.now(), inHandle: contains(grip?.getBounds(), point, 2),
         inPanel: panel?.isVisible() && contains(panel.getBounds(), point, 6), held: held() });
       if(action)trace({action,point});

@@ -3,7 +3,7 @@ import {BLUE_PALETTE,enabledRuleIds,ruleGroups,matrixGroups,matrixCount,TEAM_ROL
 import {RULES,analyzeDocument} from './modules/audit-engine.js';
 import {loadWorkspace,saveWorkspace,escapeHTML as esc,newId,formatDate,timelinePosition} from './modules/workspace.js';
 import {WorkflowVisual} from './modules/workflow-visual.js';
-import {ProjectFileView} from './modules/project-file-view.js';
+import {ProjectFileView,normalizeProjectCode} from './modules/project-file-view.js';
 
 const $=id=>document.getElementById(id),desktop=window.reviewDesktop;
 if(desktop?.isDesktop)document.documentElement.classList.add('desktop');
@@ -13,7 +13,7 @@ let visual=null,job=null,jobTimer=null,toastTimer=null,timelineOffset=0,queueExp
 let uiPrefs;
 try{uiPrefs={theme:'dark',sidebarCollapsed:false,...JSON.parse(localStorage.getItem('review-studio-ui'))};}catch{uiPrefs={theme:'dark',sidebarCollapsed:false};}
 const revision=new RevisionView({desktop,notify,refresh:()=>{if(view==='revision')render();}});
-const library=new ProjectFileView({desktop,getProjects:()=>workspace.projects,setView,notify,refresh:(change={})=>{if(view==='files'&&change.contentChanged!==false)render();else if(change.navChanged)renderSideTree();}});
+const library=new ProjectFileView({desktop,getProjects:()=>workspace.projects,getActivity:()=>job?{status:job.status,completed:job.results?.length||0}:null,setView,notify,refresh:(change={})=>{if(view==='files'&&change.contentChanged!==false)render();else if(change.navChanged)renderSideTree();}});
 const reducedSystem=matchMedia('(prefers-reduced-motion: reduce)');
 const colors=BLUE_PALETTE;
 const currentMatrices=()=>matrixGroups(currentRules(),job&&view==='review'?job.matrixCount:selectedProject().matrixCount);
@@ -39,6 +39,7 @@ function notify(message){$('toast').textContent=message;$('toast').classList.add
 function persist(){try{saveWorkspace(workspace);library.syncProjects().catch(()=>{});}catch{notify('本机存储空间不足，本次改动暂未保存。');}}
 function setView(next){
   if(!['home','project','review','revision','files'].includes(next))return;
+  if(library.mode!=='workspace'&&next!=='files'){if(next==='project')library.show(selectedProject().code.toUpperCase());else library.showSection(next);return;}
   if(next==='review'&&job?.status==='complete')next='revision';
   if(next==='revision')revision.loaded=false;
   view=next;render();
@@ -62,9 +63,9 @@ function renderSideTree(){
   const resource=(label,action,name)=>`<button class="side-item" data-action="${action}" aria-label="${label}" title="${label}">${glyph(name)}<span class="tree-label">${label}</span></button>`;
   $('sideTree').innerHTML=`<section class="side-group primary-navigation">${item('项目总览','home')}${item('批注与修订','revision')}${resource('导入文案','import','import')}${item('审核流程','review')}</section>${group('workspace','工作区',item('当前项目','project')+resource('审核规范','rules','rules'))}${group('projects','项目',projects,'<button data-action="new-project" aria-label="新建项目" title="新建项目">＋</button>')}`;
   const fileProjects=library.navProjects();
-  for(const project of workspace.projects){const files=library.projectFiles(project.code.toUpperCase());if(!files.length)continue;const row=[...$('sideTree').querySelectorAll('[data-project-open]')].find(b=>b.dataset.projectOpen===project.id);const children=row?.closest('.nav-project').querySelector('.project-children');if(children)children.innerHTML=files.map(f=>`<button data-file-open="${f.id}" title="${esc(f.path)}"><span>${esc(f.name)}</span></button>`).join('');}
+  for(const project of workspace.projects){const files=library.projectFiles(normalizeProjectCode(project.code));if(!files.length)continue;const row=[...$('sideTree').querySelectorAll('[data-project-open]')].find(b=>b.dataset.projectOpen===project.id);const children=row?.closest('.nav-project').querySelector('.project-children');if(children)children.innerHTML=files.map(f=>`<button data-file-open="${f.id}" title="${esc(f.path)}"><span>${esc(f.name)}</span></button>`).join('');}
   const fileGroup=$('sideTree').querySelector('[data-nav-group="projects"] .side-group-content');
-  const known=new Set(workspace.projects.map(p=>p.code.toUpperCase()));
+  const known=new Set(workspace.projects.map(p=>normalizeProjectCode(p.code)));
   if(fileGroup)fileGroup.insertAdjacentHTML('beforeend',fileProjects.filter(p=>!known.has(p.code)).map((p,i)=>`<div class="nav-project"><div class="nav-project-row"><button class="side-item" data-file-project="${esc(p.code)}" title="${esc(p.code+' · '+p.name)}" aria-label="打开 ${esc(p.code)} 项目文件"><span class="project-glyph" style="--project-color:${projectColors[i%projectColors.length]}"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${projectGlyphs[i%projectGlyphs.length]}"/></svg></span><span class="tree-label">${esc(p.code)}</span></button></div></div>`).join(''));
   const labels={home:'总览',project:p.name,review:'审核流程',revision:'批注与修订',files:library.settings?'文件来源':'项目文件'};
   $('breadcrumb').innerHTML=`<b>${esc(labels[view])}</b>`;
@@ -347,8 +348,8 @@ document.addEventListener('click',e=>{
     (desktop?.copyCode?desktop.copyCode(code):navigator.clipboard.writeText(code)).catch(()=>{});
     return;
   }
-  if(b.dataset.view){if(library.mode!=='workspace')library.setMode('workspace').then(()=>setView(b.dataset.view));else setView(b.dataset.view);return;}
-  if(b.dataset.action){if(library.mode!=='workspace')library.setMode('workspace').then(()=>actions[b.dataset.action]?.());else actions[b.dataset.action]?.();return;}
+  if(b.dataset.view){setView(b.dataset.view);return;}
+  if(b.dataset.action){if(library.mode!=='workspace')library.prepareAction().then(()=>actions[b.dataset.action]?.());else actions[b.dataset.action]?.();return;}
   if(b.dataset.expand){expanded=expanded===b.dataset.expand?null:b.dataset.expand;render();return;}
   if(b.dataset.projectOpen){if(library.mode!=='workspace'){library.show(workspace.projects.find(p=>p.id===b.dataset.projectOpen)?.code.toUpperCase());return;}selectProject(b.dataset.projectOpen);return;}
   if(b.dataset.document){showDocument(b.dataset.document,b.dataset.project);return;}
@@ -363,13 +364,13 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{if(e.target.id==='scanProject'){workspace.selectedProject=e.target.value;job=null;persist();render();}if(e.target.matches('[data-plan-field]'))finishPlanEdit();});
 $('closeDialog').onclick=closeDialog;
 $('openCommand').onclick=()=>{if(library.mode!=='workspace'){library.show().then(()=>$('filePeek').querySelector('[data-library-search]')?.focus());}else showCommand();};
-$('collapseSidebar').onclick=()=>{if(desktop?.layout){library.setMode(library.mode==='workspace'?'sidebar':'workspace');return;}uiPrefs.sidebarCollapsed=!uiPrefs.sidebarCollapsed;saveUI();applyUI();$('collapseSidebar').focus();};
+$('collapseSidebar').onclick=()=>{if(desktop?.layout){library.togglePanel();return;}uiPrefs.sidebarCollapsed=!uiPrefs.sidebarCollapsed;saveUI();applyUI();$('collapseSidebar').focus();};
 $('collapseSidebar').oncontextmenu=e=>{e.preventDefault();library.setMode(library.mode==='horizontal'?'sidebar':'horizontal');};
-document.addEventListener('review:toggle-theme',()=>{uiPrefs.theme=uiPrefs.theme==='light'?'dark':'light';saveUI();applyUI();if(library.mode!=='workspace')library.applyLayout({mode:library.mode,peek:library.peekOpen});});
+document.addEventListener('review:toggle-theme',()=>{uiPrefs.theme=uiPrefs.theme==='light'?'dark':'light';saveUI();applyUI();if(library.mode!=='workspace')library.applyLayout({mode:library.mode,peek:library.peekOpen,edge:document.documentElement.dataset.dockEdge});});
 $('revealSidebar').onclick=()=>{uiPrefs.sidebarCollapsed=false;saveUI();applyUI();$('collapseSidebar').focus();};
 $('dialog').addEventListener('click',e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('fileInput').onchange=e=>readFiles([...e.target.files]);
-if(desktop)desktop.onNavigate(next=>next==='settings'?showSettings():setView(next));
+if(desktop)desktop.onNavigate(next=>next==='settings'?library.showSettings():setView(next));
 document.addEventListener('keydown',e=>{if(e.isComposing||e.keyCode===229)return;if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(!$('dialog').open)showCommand();return;}if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)||document.activeElement.isContentEditable||$('dialog').open)return;if(e.key==='/'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();showCommand();return;}if(e.code==='Space'&&view==='review'&&activeJob()){e.preventDefault();job.status==='running'?pauseRun():resumeRun();}if(view==='review'&&queueExpanded&&e.key==='Escape'){setQueueExpanded(false);e.stopPropagation();}
 if(view==='project'&&e.key==='ArrowLeft')actions['project-prev']();if(view==='project'&&e.key==='ArrowRight')actions['project-next']();});
 reducedSystem.addEventListener('change',()=>{if(view==='review')updateReview();});

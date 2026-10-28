@@ -1,6 +1,6 @@
 {
   "name": "copy-review-desk-studio",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "A glass macOS menu bar workspace for copy review and project planning.",
   "type": "module",
@@ -19,7 +19,8 @@
     "prepare:electron": "node node_modules/electron/install.js",
     "build:mac": "npm run prepare:pdf && npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir zip --arm64",
     "build:mac:dir": "npm run prepare:pdf && npm run check && npm run icons && npm run prepare:electron && electron-builder --mac dir --arm64",
-    "prepare:pdf": "node scripts/prepare-pdf-font.mjs"
+    "prepare:pdf": "node scripts/prepare-pdf-font.mjs",
+    "test:desktop-services": "electron scripts/check-file-services.cjs"
   },
   "devDependencies": {
     "electron": "44.9.1",
@@ -68,7 +69,10 @@
       "minimumSystemVersion": "12.0",
       "extendInfo": {
         "LSUIElement": true,
-        "NSHighResolutionCapable": true
+        "NSHighResolutionCapable": true,
+        "NSDesktopFolderUsageDescription": "监听您授权的桌面目录，发现项目文件并在侧栏按项目展示。",
+        "NSDownloadsFolderUsageDescription": "监听您授权的下载目录，发现项目图稿和阶段表格。",
+        "NSDocumentsFolderUsageDescription": "读取您选择的项目目录，将文件关联到相应项目。"
       },
       "target": [
         {

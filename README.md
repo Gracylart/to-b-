@@ -158,4 +158,4 @@ THIRD_PARTY_NOTICES.md      来源、致谢与第三方许可
 
 PDF 字体构建需要 Python 3（脚本使用隔离虚拟环境安装 fonttools）。首次构建先运行 `npm run prepare:pdf` 下载 SIL OFL 字体 Noto Sans SC，随后字体随应用打包，用户使用时无需下载。PDF 引擎依赖 pdf-lib、@pdf-lib/fontkit 和 pdfjs-dist。
 
-文件侧栏已接入边缘自动隐藏：默认在右侧保留窄把手，悬停唤出，移出延迟收起。菜单栏右键菜单可选择左右停靠、横栏或完整工作区，并关闭自动收起。项目文件、变更版本、借用来源和阶段表格的说明见 [项目文件归集](docs/project-file-integration.md)。
+文件侧栏已接入边缘自动隐藏：默认在右侧保留窄把手，悬停唤出，移出延迟收起。菜单栏右键菜单可选择左右停靠或横栏，并关闭自动收起。桌面版仅提供侧栏及展开面板，不再进入普通窗口。项目文件、变更版本、借用来源和阶段表格的说明见 [项目文件归集](docs/project-file-integration.md)。

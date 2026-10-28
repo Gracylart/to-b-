@@ -4,7 +4,7 @@ const fsp=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {EventEmitter}=require('node:events');
-const {fork}=require('node:child_process');
+const {launchLocalProcess}=require('./local-process.cjs');
 const SUPPORTED=new Set(['.pdf','.xlsx','.xls','.xlsm','.csv','.tsv','.txt','.md','.ai','.svg','.png','.jpg','.jpeg','.webp']);
 const {FileMetadata}=require('./file-metadata.cjs');
 const SHEETS=new Set(['.xlsx','.xls','.xlsm','.csv','.tsv']);
@@ -41,6 +41,9 @@ async function excerpt(file) {
   const stat=await fsp.stat(file.path);if(stat.size>25*1024*1024)return {text:'',note:'超过内容提取上限，保留文件名归集'};
   if(file.ext==='.pdf'){
     const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // Electron utility processes are not detected as Node by PDF.js. Supply the
+    // bundled worker explicitly so text extraction also works in that process.
+    pdfjs.GlobalWorkerOptions.workerSrc=require('node:url').pathToFileURL(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href;
     const task=pdfjs.getDocument({data:new Uint8Array(await fsp.readFile(file.path)),useSystemFonts:true,isEvalSupported:false,disableFontFace:true});
     try{const doc=await task.promise;let text='';for(let n=1;n<=Math.min(3,doc.numPages)&&text.length<6000;n++){const page=await doc.getPage(n);const content=await page.getTextContent();text+=content.items.map(x=>x.str||'').join(' ')+'\n';}return {text:text.slice(0,6000),note:text.trim()?'':'扫描稿或无可提取文字，需 OCR'};}finally{await task.destroy();}
   }
@@ -53,7 +56,7 @@ async function excerpt(file) {
 }
 function extractInProcess(file,{signal}={}){return new Promise((resolve,reject)=>{
   if(signal?.aborted){reject(Error('已停止文件提取'));return;}
-  const child=fork(path.join(__dirname,'file-extractor.cjs'),[JSON.stringify({path:file.path,ext:file.ext})],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','ignore','ignore','ipc']});let settled=false;
+  const child=launchLocalProcess(path.join(__dirname,'file-extractor.cjs'),[JSON.stringify({path:file.path,ext:file.ext})],'审核台文件内容提取');let settled=false;
   const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);child.kill('SIGKILL');error?reject(error):resolve(value);};
   const abort=()=>finish(Error('已停止文件提取'));
   const timer=setTimeout(()=>finish(Error('文件内容提取超时')),25000);
@@ -69,7 +72,7 @@ class ProjectFiles extends EventEmitter {
     await fsp.mkdir(this.directory,{recursive:true});let data={};try{data=JSON.parse(await fsp.readFile(this.cache,'utf8'));}catch{}
     this.catalog=data.version===2&&Array.isArray(data.catalog)?data.catalog:[];this.manual=data.manual&&typeof data.manual==='object'?data.manual:{};
     const saved=Array.isArray(data.roots)?data.roots:this.defaultRoots;
-    for(const r of saved){try{const real=await this.metadata.realpath(r.path);if((await this.metadata.stat(real)).isDirectory()&&!this.roots.some(x=>x.path===real))this.roots.push({id:uid(real),path:real,label:String(r.label||path.basename(real)).slice(0,100),enabled:r.enabled!==false});}catch(e){if(typeof r.path==='string'&&path.isAbsolute(r.path)&&!this.roots.some(x=>x.path===r.path))this.roots.push({id:uid(r.path),path:r.path,label:String(r.label||path.basename(r.path)).slice(0,100),enabled:r.enabled!==false});this.errors.push({source:r.label,error:'目录暂不可访问'});}}
+    for(const r of saved){try{const real=await this.metadata.realpath(r.path);if((await this.metadata.stat(real)).isDirectory()&&!this.roots.some(x=>x.path===real))this.roots.push({id:uid(real),path:real,label:String(r.label||path.basename(real)).slice(0,100),enabled:r.enabled!==false,permissionRequired:r.permissionRequired===true});}catch(e){if(typeof r.path==='string'&&path.isAbsolute(r.path)&&!this.roots.some(x=>x.path===r.path))this.roots.push({id:uid(r.path),path:r.path,label:String(r.label||path.basename(r.path)).slice(0,100),enabled:r.enabled!==false,permissionRequired:r.permissionRequired===true});this.errors.push({source:r.label,error:'目录暂不可访问'});}}
     if(data.version===2&&Array.isArray(data.files))for(const f of data.files)if(f&&typeof f.path==='string'&&this.roots.some(r=>inside(r.path,f.path))){if(!['立项','设计','打样','送审','确认','试产','量产','EVT','DVT','PVT','MP','T0'].includes(f.stage))f.stage='';this.files.set(f.id,f);}
     this.watch();return this;
   }
@@ -80,13 +83,18 @@ class ProjectFiles extends EventEmitter {
     if(JSON.stringify([...merged.values()])===JSON.stringify(this.catalog))return;
     this.catalog=[...merged.values()];this.retryPending(true);this.schedule();this.changed();
   }
-  async addRoot(directory,label){const real=await this.metadata.realpath(directory);if(!(await this.metadata.stat(real)).isDirectory())throw Error('请选择文件夹');if(!this.roots.some(r=>r.path===real))this.roots.push({id:uid(real),path:real,label:label||path.basename(real),enabled:true});this.watch();this.changed();await this.scan();return this.snapshot();}
-  async toggleRoot(id,enabled){const r=this.roots.find(r=>r.id===id);if(!r||typeof enabled!=='boolean')throw Error('来源设置无效');r.enabled=enabled;this.watch();await this.scan();this.changed();return this.snapshot();}
+  async addRoot(directory,label){const real=await this.metadata.realpath(directory);if(!(await this.metadata.stat(real)).isDirectory())throw Error('请选择文件夹');const existing=this.roots.find(r=>r.path===real);if(existing){existing.enabled=true;existing.permissionRequired=false;}else this.roots.push({id:uid(real),path:real,label:label||path.basename(real),enabled:true});this.watch();this.changed();await this.scan();return this.snapshot();}
+  async toggleRoot(id,enabled){const r=this.roots.find(r=>r.id===id);if(!r||typeof enabled!=='boolean')throw Error('来源设置无效');r.enabled=enabled;r.permissionRequired=false;this.watch();await this.scan();this.changed();return this.snapshot();}
+  permissionDenied(root,error){
+    if(!['EACCES','EPERM'].includes(error.code)&&!/permission denied|not permitted/i.test(error.message||''))return false;
+    root.enabled=false;root.permissionRequired=true;this.errors.push({source:root.label,error:'访问未获授权，已暂停监听；请在文件来源中重新选择该目录'});
+    this.changed();return true;
+  }
   watch(){
     this.watchers.forEach(w=>w.close());this.watchers=[];
     for(const r of this.roots.filter(r=>r.enabled)){
-      const worker=fork(path.join(__dirname,'file-watcher.cjs'),[JSON.stringify({root:r.path,skip:[...SKIP]})],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','ignore','ignore','ipc']});worker.unref();worker.channel?.unref();
-      worker.on('message',message=>{if(this.closed)return;if(message.ready)this.schedule();if(message.events)this.applyEvents(r,message.events).catch(error=>{this.errors.push({source:r.label,error:error.message});this.changed();});if(message.error){this.errors.push({source:r.label,error:message.error});this.changed();}});
+      const worker=launchLocalProcess(path.join(__dirname,'file-watcher.cjs'),[JSON.stringify({root:r.path,skip:[...SKIP]})],'审核台目录监听');worker.unref();worker.channel?.unref();
+      worker.on('message',message=>{if(this.closed)return;if(message.ready)this.schedule();if(message.events)this.applyEvents(r,message.events).catch(error=>{this.errors.push({source:r.label,error:error.message});this.changed();});if(message.error){if(!this.permissionDenied(r,{code:message.code,message:message.error}))this.errors.push({source:r.label,error:message.error});this.changed();}});
       worker.on('error',error=>{if(!this.closed){this.errors.push({source:r.label,error:error.message});this.changed();}});
       this.watchers.push({close:()=>{worker.removeAllListeners('message');worker.kill('SIGKILL');}});
     }
@@ -130,14 +138,14 @@ class ProjectFiles extends EventEmitter {
       }catch{this.schedule();}
     }
     this.catalog=this.catalog.filter(p=>p.source!=='discovered'||[...this.files.values()].some(f=>f.projectCode===p.code||f.linkedCodes?.includes(p.code)));
-    this.changed();this.processModel();
+    this.prioritizeQueue();this.changed();this.processModel();
   }
   async _scan(){
     const seen=new Set(),failedRoots=new Set(),started=Date.now();let visited=0,limited=false;
     for(const root of this.roots.filter(r=>r.enabled).sort((a,b)=>b.path.length-a.path.length)){
-      try{if(await this.metadata.realpath(root.path)!==root.path)throw Error('目录指向已改变，请重新选择');}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,error:e.code||e.message});continue;}
+      try{if(await this.metadata.realpath(root.path)!==root.path)throw Error('目录指向已改变，请重新选择');}catch(e){failedRoots.add(root.id);if(!this.permissionDenied(root,e))this.errors.push({source:root.label,error:e.code||e.message});continue;}
       const stack=[{path:root.path,depth:0}];
-      while(stack.length&&!this.closed){if(Date.now()-started>20000){limited=true;break;}const current=stack.pop();let entries;try{entries=await this.metadata.readdir(current.path);}catch(e){failedRoots.add(root.id);this.errors.push({source:root.label,path:current.path,error:e.code||e.message});continue;}
+      while(stack.length&&!this.closed){if(Date.now()-started>20000){limited=true;break;}const current=stack.pop();let entries;try{entries=await this.metadata.readdir(current.path);}catch(e){failedRoots.add(root.id);if(current.path!==root.path||!this.permissionDenied(root,e))this.errors.push({source:root.label,path:current.path,error:e.code||e.message});continue;}
         for(const entry of entries){if(this.closed)break;if(entry.name.startsWith('.')||entry.name.startsWith('~$')||SKIP.has(entry.name)||entry.isSymbolicLink())continue;
           const target=path.join(current.path,entry.name);
           if(entry.isDirectory()){if(current.depth<14&&!/\.(app|bundle|photoslibrary)$/i.test(entry.name))stack.push({path:target,depth:current.depth+1});continue;}
@@ -154,18 +162,24 @@ class ProjectFiles extends EventEmitter {
     if(!limited)for(const[id,file]of this.files)if(!seen.has(id)&&!failedRoots.has(file.sourceId)&&Date.parse(file.indexedAt)<=started)this.files.delete(id);
     if(!limited)this.catalog=this.catalog.filter(p=>p.source!=='discovered'||[...this.files.values()].some(f=>f.projectCode===p.code||f.linkedCodes?.includes(p.code)));
     if(limited)this.errors.push({error:`本轮扫描达到文件数量或时间上限，已保留索引；请缩小监听目录`});
-    this.modelQueue=this.modelQueue.filter((item,i,a)=>a.findIndex(x=>x.id===item.id&&x.signature===item.signature)===i).sort((a,b)=>(this.files.get(b.id)?.mtime||0)-(this.files.get(a.id)?.mtime||0));
+    this.prioritizeQueue();
+  }
+  prioritizeQueue(){
+    this.modelQueue=[...new Map(this.modelQueue.filter(item=>this.files.get(item.id)?.signature===item.signature&&!this.manual[item.id]).map(item=>[item.id,item])).values()].sort((a,b)=>(this.files.get(b.id)?.mtime||0)-(this.files.get(a.id)?.mtime||0));
   }
   async processModel(){
     if(this.closed||this.modelBusy||!this.model||this.model.state!=='ready')return;
     const eligible=()=>this.catalog.filter(p=>(p.example||p.source==='discovered')?[...this.files.values()].some(f=>f.state==='linked'&&(f.projectCode===p.code||f.linkedCodes?.includes(p.code))):true);
     if(!eligible().length)return;
     this.modelBusy=true;this.changed();
-    try{while(this.modelQueue.length&&!this.closed){const targets=eligible();if(!targets.length)break;const item=this.modelQueue.shift(),file=this.files.get(item.id);if(!file||file.signature!==item.signature||(file.state!=='pending'&&!(file.kind==='sheet'&&!file.stage))||file.conflict||this.manual[file.id])continue;
+    try{while(this.modelQueue.length&&!this.closed){const targets=eligible();if(!targets.length)break;const item=this.modelQueue.shift();let file=this.files.get(item.id);if(!file||file.signature!==item.signature||(file.state!=='pending'&&!(file.kind==='sheet'&&!file.stage))||file.conflict||this.manual[file.id])continue;
       // The extractor never executes document scripts, formulas, or macros.
       try{await this.resolve(file.id);const extracted=await this.extract(file,{signal:this.extractAbort.signal});if(this.closed)break;file.contentNote=extracted.note;
         const result=await this.model.classify(file,targets,extracted.text);
         if(this.closed||this.files.get(file.id)?.signature!==item.signature||this.manual[file.id])continue;
+        // A watcher refresh may have replaced this map entry during inference.
+        // Apply the result to the current record, after rechecking its version.
+        file=this.files.get(file.id);if(file.conflict)continue;file.contentNote=extracted.note;
         const code=codeKey(result.projectCode),candidate=this.catalog.find(p=>p.code===code);
         const evidence=(file.name+' '+file.relativePath+' '+extracted.text).toUpperCase();
         const verified=candidate&&(hasCode(evidence,code)||(candidate.name.length>=3&&evidence.includes(candidate.name.toUpperCase())));
@@ -179,7 +193,7 @@ class ProjectFiles extends EventEmitter {
       this.changed();
     }}finally{this.modelBusy=false;this.changed();}
   }
-  retryPending(force=false){for(const file of this.files.values())if(file.state==='pending'&&!file.conflict&&(force||file.method!=='model'))this.modelQueue.push({id:file.id,signature:file.signature});this.processModel();}
+  retryPending(force=false){for(const file of this.files.values())if(file.state==='pending'&&!file.conflict&&(force||file.method!=='model'))this.modelQueue.push({id:file.id,signature:file.signature});this.prioritizeQueue();this.processModel();}
   snapshot(){return {revision:this.revision,scanning:this.scanning,modelBusy:this.modelBusy,queued:this.modelQueue.length,lastScan:this.lastScan,roots:this.roots,errors:this.errors.slice(-12),projects:this.catalog,files:[...this.files.values()].filter(f=>this.roots.some(r=>r.enabled&&r.id===f.sourceId)),model:{state:this.model?.state||'stopped',model:this.model?.constructor?.name==='LocalFileModel'?'qwen3:0.6b':''}};}
   async resolve(id){
     const file=this.files.get(id);if(!file)throw Error('文件已移除，请重新扫描');

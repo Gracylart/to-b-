@@ -196,12 +196,14 @@ async function mainHarness(savedLayout) {
       this.webContents.mainFrame.url = `${pathToFileURL(file).href}?desktop=${options.query.desktop}`;
       return Promise.resolve();
     }
-    hide() { this.hideCount += 1; }
-    show() { this.showCount += 1; }
+    hide() { this.hideCount += 1;this.visible=false; }
+    show() { this.showCount += 1;this.visible=true; }
+    isVisible(){return !!this.visible;}
     focus() {}
     setBounds(bounds) {this.bounds=bounds;}
     getBounds(){return this.bounds||this.options;}
     setMinimumSize(){}setResizable(){}setWindowButtonVisibility(){}
+    isMinimized(){return !!this.minimized;}restore(){this.minimized=false;this.restoreCount=(this.restoreCount||0)+1;}
   }
   class MockTray extends EventEmitter {
     constructor() { super(); trays.push(this); }
@@ -300,10 +302,10 @@ test('actual IPC handlers reject unrelated senders, child frames, and missing fr
   assert.deepEqual(JSON.parse(writes[0][1]), { pinned: true, launchAtLogin: false });
 });
 
-test('loaded desktop page becomes visible even without an initial hidden-paint event',async()=>{
-  const {panel}=await mainHarness();assert.equal(panel.showCount,0);
-  panel.webContents.emit('did-finish-load');assert.equal(panel.showCount,1);assert.equal(panel.bounds.width,1200);
-  panel.emit('ready-to-show');assert.equal(panel.showCount,1);
+test('loaded sidebar can be revealed without waiting for a hidden native paint',async()=>{
+ const {panel,tray}=await mainHarness();assert.equal(panel.showCount,0);
+ panel.webContents.emit('did-finish-load');tray.emit('click');assert.equal(panel.showCount,1);assert.equal(panel.bounds.width,64);
+ panel.emit('ready-to-show');assert.equal(panel.showCount,1);
 });
 
 test('a navigated main frame loses all IPC privileges until the trusted document returns', async () => {
@@ -469,4 +471,13 @@ test('cold compact startup creates the saved dimensions before loading and leave
  panel.webContents.emit('did-finish-load');assert.equal(panel.showCount,0);
  assert.equal(panel.bounds.width,mode==='sidebar'?64:620);
  }
+});
+
+test('only frameless sidebar layouts are available, including recovery from old workspace preferences',async()=>{
+ const {panel,invocations,trustedEvent}=await mainHarness({mode:'workspace',compactMode:'horizontal'});
+ assert.equal(panel.options.frame,false);assert.equal(panel.options.type,'panel');
+ for(const option of ['minimizable','maximizable','fullscreenable','resizable'])assert.equal(panel.options[option],false);
+ assert.equal(panel.options.width,620);await assert.rejects(invocations.get('review:layout')(trustedEvent(),{mode:'workspace'}),/无效窗口形态/);
+ panel.webContents.emit('did-finish-load');let prevented=false;panel.emit('close',{preventDefault(){prevented=true;}});assert.equal(prevented,true);
+ const layout=await invocations.get('review:layout')(trustedEvent());assert.equal(layout.mode,'horizontal');assert.equal(layout.peek,false);assert.equal(layout.autoHide,true);assert.ok(panel.hideCount>0);
 });
